@@ -198,6 +198,7 @@
     <div><h1>عالم الشراء</h1><small>نموذج أولي · كوكب التسوق</small></div>
   </div>
   <div class="stats">
+    <div class="stat"><b id="sOnline">1</b><span>متصل الحين</span></div>
     <div class="stat"><b id="sAvail">0</b><span>قطعة متاحة</span></div>
     <div class="stat"><b id="sRented">0</b><span>قطعة مؤجرة</span></div>
     <div class="stat"><b id="sIncome">$0</b><span>الإيراد الشهري</span></div>
@@ -282,10 +283,12 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { City, STYLES, COLORS } from './city.js?v=4';
-import { PRESETS, makeLine, calcSpace, demoLines } from './catalog.js?v=4';
-import * as BE from './backend.js?v=4';
-import { buildAvatar, animateAvatar, randomAvatar, defaultAvatar, SKINS, HAIR, CLOTH, OUTFITS, HEADWEAR } from './avatar.js?v=4';
+import { City, STYLES, COLORS } from './city.js?v=5';
+import { PRESETS, makeLine, calcSpace, demoLines } from './catalog.js?v=5';
+import * as BE from './backend.js?v=5';
+import { Social } from './social.js?v=5';
+import { makeOutline } from './toon.js?v=5';
+import { buildAvatar, animateAvatar, randomAvatar, defaultAvatar, SKINS, HAIR, CLOTH, OUTFITS, HEADWEAR } from './avatar.js?v=5';
 
 /* ---------- random + noise ---------- */
 let seed = 20261114;
@@ -615,6 +618,13 @@ async function syncPlots(){
   saveMine(); updateStats();
   if(selected>=0) openPanel(plots[selected]);
 }
+async function joinPlanet(){
+  const c=await BE.client(); if(!c) return;
+  const key=(await BE.myId())||'guest-'+Math.random().toString(36).slice(2);
+  const ch=c.channel('planet',{config:{presence:{key}}});
+  ch.on('presence',{event:'sync'},()=>{ sOnline.textContent=Math.max(1,Object.keys(ch.presenceState()).length); })
+    .subscribe(st=>{ if(st==='SUBSCRIBED') ch.track({t:Date.now()}); });
+}
 async function startShared(){
   if(!BE.configured()) return;
   try{
@@ -623,6 +633,7 @@ async function startShared(){
     await syncPlots();
     const w=parseInt(new URLSearchParams(location.search).get('walk'),10);
     if(w>=0&&plots[w]){ history.replaceState(null,'',location.pathname); openPanel(plots[w]); if(plots[w].store||plots[w].status==='rented') enterCity(plots[w]); }
+    joinPlanet();
     BE.onPlotChange(({eventType,new:n,old:o})=>{ if(eventType==='DELETE') clearRow(o.plot_id); else applyRow(n); updateStats(); });
   }catch(e){ console.warn('shared world offline',e); }
 }
@@ -800,7 +811,7 @@ $id('avDel').onclick=e=>{
 function startAvatarView(){
   if(!avView){
     const cv=$id('avCanvas'), r=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
-    r.setPixelRatio(Math.min(devicePixelRatio,2)); r.outputColorSpace=THREE.SRGBColorSpace; r.toneMapping=THREE.ACESFilmicToneMapping;
+    r.setPixelRatio(Math.min(devicePixelRatio,2)); r.outputColorSpace=THREE.SRGBColorSpace;
     r.shadowMap.enabled=true; r.shadowMap.type=THREE.PCFSoftShadowMap;
     const s=new THREE.Scene(), cam=new THREE.PerspectiveCamera(30,.75,.1,50);
     s.add(new THREE.HemisphereLight(0xdfeaff,0x3a3328,1.4));
@@ -810,7 +821,7 @@ function startAvatarView(){
     const disc=new THREE.Mesh(new THREE.CylinderGeometry(.7,.75,.06,48),new THREE.MeshStandardMaterial({color:'#1c2a4d',roughness:.6}));
     disc.position.y=-.03; disc.receiveShadow=true; s.add(disc);
     const holder=new THREE.Group(); s.add(holder);
-    avView={r,s,cam,holder,yaw:.5,drag:null,run:false,t:0};
+    avView={r,s,cam,holder,yaw:.5,drag:null,run:false,t:0,ol:makeOutline(r)};
     cv.addEventListener('pointerdown',e=>{avView.drag=e.clientX;cv.setPointerCapture(e.pointerId);});
     cv.addEventListener('pointermove',e=>{ if(avView.drag===null) return; avView.yaw+=(e.clientX-avView.drag)*.012; avView.drag=e.clientX; });
     cv.addEventListener('pointerup',()=>{avView.drag=null;});
@@ -823,7 +834,7 @@ function startAvatarView(){
     const H=(av?.height||1.75); v.cam.position.set(0,H*.62,H*2.3/Math.min(1,v.cam.aspect*1.35)); v.cam.lookAt(0,H*.52,0);
     if(v.drag===null) v.yaw+=.004; v.holder.rotation.y=v.yaw;
     v.t+=.016; if(v.holder.children[0]) animateAvatar(v.holder.children[0],v.t*1.2,.0);
-    v.r.render(v.s,v.cam); };
+    v.ol.render(v.s,v.cam); };
   loop();
 }
 function refreshAvatar(){ if(!avView) return; avView.holder.clear(); avView.holder.add(buildAvatar(av)); }
@@ -844,6 +855,9 @@ async function enterCity(p){
     title:`${COUNTRIES[p.country]} · قطعة ${p.id+1}`,subtitle:store?store.name:'أرض بدون مبنى',
     onExit:()=>{city.dispose();city=null;window.__city=null;document.body.classList.remove('in-city');controls.enabled=true;}});
   window.__city=city; // handy for debugging in the browser console
+  // people: live avatars, chat and voice with whoever is in this district
+  const uid=await BE.myId();
+  if(uid&&city){ city.social=new Social(city,{me:{id:uid,name:profile.name,avatar:profile.avatar,adult:profile.age>=18},room:p.id}); city.social.start(); }
 }
 function closePanel(){panel.classList.remove('open');setViewShift();const p=plots[selected];selected=-1;repaintPlot(p);pin.visible=false;}
 function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');

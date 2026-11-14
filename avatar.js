@@ -1,6 +1,7 @@
 // عالم الشراء — modest avatars. Every outfit covers from the neck to the ankles and wrists.
 // A built avatar faces +z, stands on y=0 and is about `height` metres tall.
 import * as THREE from 'three';
+import { toonMat } from './toon.js?v=5';
 
 export const SKINS = ['#f3d4b8','#e6b996','#d29d74','#b97f57','#8f5d3c','#5e3a26'];
 export const HAIR  = ['#1b1512','#3b2618','#6b4527','#a0743f','#8a8a8a'];
@@ -45,7 +46,7 @@ export function randomAvatar(rand=Math.random){
 
 /* ---------- shared geometry / materials ---------- */
 const geo={}, mats={};
-const mat=(c,opt={})=>{const k=c+JSON.stringify(opt); return mats[k]||(mats[k]=new THREE.MeshStandardMaterial({color:c,roughness:.82,...opt}));};
+const mat=(c,opt={})=>{const k=c+JSON.stringify(opt); const {roughness,...o}=opt; return mats[k]||(mats[k]=toonMat({color:c,...o}));};
 const lathe=(key,pts,seg=20,ps=0,pl=Math.PI*2)=>geo[key]||(geo[key]=new THREE.LatheGeometry(pts.map(([r,y])=>new THREE.Vector2(r,y)),seg,ps,pl));
 const once=(key,f)=>geo[key]||(geo[key]=f());
 
@@ -112,16 +113,22 @@ export function buildAvatar(a){
 
   // neck + head
   const neck=new THREE.Mesh(once('neck',()=>new THREE.CylinderGeometry(.055,.06,.1,10)),skin); neck.position.y=1.52; body.add(neck);
-  const head=new THREE.Group(); head.position.y=1.64; body.add(head);
+  const head=new THREE.Group(); head.position.y=1.665; head.scale.setScalar(1.22); body.add(head);
   const skull=new THREE.Mesh(once('head',()=>new THREE.SphereGeometry(.105,20,16)),skin); skull.scale.set(.92,1.1,1); head.add(skull);
-  const eyeG=once('eye',()=>new THREE.SphereGeometry(.013,8,6)), eyeM=mat('#1a1410',{roughness:.3});
-  const browG=once('brow',()=>new THREE.BoxGeometry(.036,.008,.01));
+  // anime eyes: large white, big dark iris, two shine dots
+  const sclG=once('scl',()=>new THREE.SphereGeometry(.024,14,10)), irisG=once('iris',()=>new THREE.SphereGeometry(.017,14,10)), shineG=once('shine',()=>new THREE.SphereGeometry(.0055,8,6));
+  const white=new THREE.MeshBasicMaterial({color:'#ffffff'}), irisM=new THREE.MeshBasicMaterial({color:A.gender==='f'?'#4a2a1a':'#2a1c14'});
+  const browG=once('brow',()=>new THREE.BoxGeometry(.034,.007,.008));
   for(const x of [-.036,.036]){
-    const e=new THREE.Mesh(eyeG,eyeM); e.position.set(x,.015,.092); head.add(e);
-    const b=new THREE.Mesh(browG,hairM); b.position.set(x,.042,.093); b.rotation.z=x>0?-.12:.12; head.add(b);
+    const sc=new THREE.Mesh(sclG,white); sc.position.set(x,.008,.086); sc.scale.set(.85,1.15,.35); head.add(sc);
+    const ir=new THREE.Mesh(irisG,irisM); ir.position.set(x*.98,.004,.094); ir.scale.set(.8,1.15,.3); head.add(ir);
+    const sh=new THREE.Mesh(shineG,white); sh.position.set(x+.007,.016,.099); head.add(sh);
+    const b=new THREE.Mesh(browG,hairM); b.position.set(x,.046,.094); b.rotation.z=x>0?-.15:.15; head.add(b);
+    const blush=new THREE.Mesh(once('blush',()=>new THREE.SphereGeometry(.014,10,6)),new THREE.MeshBasicMaterial({color:'#ff9aa8',transparent:true,opacity:.45}));
+    blush.position.set(x*1.45,-.026,.084); blush.scale.set(1.3,.6,.3); head.add(blush);
   }
-  const nose=new THREE.Mesh(once('nose',()=>new THREE.ConeGeometry(.014,.04,6)),skin); nose.position.set(0,-.012,.102); nose.rotation.x=Math.PI/2+.4; head.add(nose);
-  const mouth=new THREE.Mesh(once('mouth',()=>new THREE.BoxGeometry(.034,.007,.01)),mat('#8c4a3e')); mouth.position.set(0,-.05,.094); head.add(mouth);
+  const nose=new THREE.Mesh(once('nose',()=>new THREE.SphereGeometry(.006,6,5)),mat(A.skin)); nose.position.set(0,-.02,.104); head.add(nose);
+  const mouth=new THREE.Mesh(once('mouth',()=>new THREE.TorusGeometry(.011,.0028,6,12,Math.PI)),mat('#8c3a3e')); mouth.position.set(0,-.045,.096); mouth.rotation.z=Math.PI; head.add(mouth);
   for(const x of [-.097,.097]){ const ear=new THREE.Mesh(once('ear',()=>new THREE.SphereGeometry(.022,8,6)),skin); ear.position.set(x,0,0); ear.scale.set(.5,1,.8); head.add(ear); }
 
   if(A.gender==='m'&&A.beard!=='none'){
@@ -141,7 +148,7 @@ export function buildAvatar(a){
   if(A.head==='ghutra'||A.head==='shemagh'){
     const [ps,pl]=gap(1.5);
     const tex=A.head==='shemagh'?checkTex():null;
-    const gm=tex?new THREE.MeshStandardMaterial({map:tex,roughness:.9,side:THREE.DoubleSide}):cloth('#f7f6f2');
+    const gm=tex?toonMat({map:tex,side:THREE.DoubleSide}):cloth('#f7f6f2');
     const gh=new THREE.Mesh(lathe('ghutra',[[0,.135],[.07,.125],[.112,.085],[.122,.03],[.13,-.04],[.15,-.12],[.2,-.22],[.25,-.3]],22,ps,pl),gm);
     head.add(gh);
     const agal=new THREE.Mesh(once('agal',()=>new THREE.TorusGeometry(.104,.012,8,24)),mat('#121212',{roughness:.5}));

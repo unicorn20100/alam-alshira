@@ -9,7 +9,7 @@ export const SUPABASE_KEY = 'sb_publishable_RAaT-jRKfQw_J_7z6P1MeA_A1a2EJLS';
 let sb = null, loading = null;
 export const configured = () => !!(SUPABASE_URL && SUPABASE_KEY);
 
-async function client(){
+export async function client(){
   if(sb) return sb;
   if(!configured()) return null;
   loading ||= import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
@@ -129,4 +129,13 @@ export async function myBuildRequests(plotId){
   if(!(await myId())) return [];
   const { data } = await c.from('build_requests').select('id,notes,status,created_at').eq('plot_id', plotId).order('created_at', { ascending:false });
   return data || [];
+}
+
+/* ---------- safety ---------- */
+export async function reportUser({reported, reason, context}){
+  const c = await client(); if(!c) throw new Error('offline');
+  await ensureUser();
+  const { error } = await c.from('reports').insert({ reported, reason, context });
+  if(error) throw error;
+  return true;
 }

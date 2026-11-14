@@ -84,8 +84,8 @@
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import * as BE from './backend.js?v=4';
-import { PRESETS, makeLine, presetById, calcSpace, STYLES, COLORS } from './catalog.js?v=4';
+import * as BE from './backend.js?v=5';
+import { PRESETS, makeLine, presetById, calcSpace, STYLES, COLORS } from './catalog.js?v=5';
 
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

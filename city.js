@@ -1,10 +1,12 @@
 // عالم الشراء — walkable district. Every shop is its own odd-shaped building,
 // sized by the space calculator from the shop's real products (all units in metres).
 import * as THREE from 'three';
-import { calcSpace, GONDOLA, slotFit } from './catalog.js?v=4';
-import { buildAvatar, animateAvatar, randomAvatar } from './avatar.js?v=4';
+import { calcSpace, GONDOLA, slotFit } from './catalog.js?v=5';
+import { buildAvatar, animateAvatar, randomAvatar } from './avatar.js?v=5';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { mediaOk } from './backend.js?v=4';
+import { mediaOk } from './backend.js?v=5';
+import { toonify, makeOutline, cloudTexture, grassTexture } from './toon.js?v=5';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // product photo on the faces that point at the shopper; plain colour + label elsewhere
 const texLoader=new THREE.TextureLoader(); texLoader.setCrossOrigin('anonymous');
@@ -14,7 +16,7 @@ function photoTex(url){
   return photoCache.get(url);
 }
 
-import { STYLES, COLORS } from './catalog.js?v=4';
+import { STYLES, COLORS } from './catalog.js?v=5';
 export { STYLES, COLORS };
 const NEIGHBOR_NAMES = ['دار العطور','أزياء الرمال','إلكترونيات المستقبل','بيت القهوة','عالم الألعاب','ركن الكتب',
   'مجوهرات اللؤلؤ','أثاث النخلة','رياضة بلس','ساعات الزمن','حلويات السكر','بيت الورد','صيدلية الشفاء','عالم الأحذية'];
@@ -113,9 +115,14 @@ export class City {
     this.camera=new THREE.PerspectiveCamera(70,1,.05,900); this.camera.rotation.order='YXZ'; this.resize();
     this.sky=new THREE.Mesh(new THREE.SphereGeometry(600,32,16),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,
       vertexShader:`varying vec3 vW;void main(){vW=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-      fragmentShader:`varying vec3 vW;void main(){float h=max(vW.y,0.);gl_FragColor=vec4(mix(vec3(.84,.91,.97),vec3(.32,.55,.9),pow(h,.55)),1.);}`}));
+      fragmentShader:`varying vec3 vW;void main(){float h=max(vW.y,0.);gl_FragColor=vec4(mix(vec3(.87,.94,1.),vec3(.2,.48,.93),pow(h,.42)),1.);}`}));
     S.add(this.sky);
-    S.add(new THREE.HemisphereLight(0xe3f1ff,0x6b7a5a,1.2));
+    // painted clouds far away (they ignore fog)
+    this.clouds=new THREE.Group(); S.add(this.clouds);
+    for(let i=0;i<18;i++){ const a=i/18*Math.PI*2+this.rand()*.3, r=330+this.rand()*160, w=70+this.rand()*90;
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:cloudTexture(i+1+seed),fog:false,depthWrite:false,transparent:true}));
+      sp.scale.set(w,w/2,1); sp.position.set(Math.sin(a)*r,60+this.rand()*90,Math.cos(a)*r); this.clouds.add(sp); }
+    S.add(new THREE.HemisphereLight(0xe8f4ff,0x8aa070,1.1));
     const sun=this.sun=new THREE.DirectionalLight(0xfff1d6,2.2);
     sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
     Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60,near:1,far:260});
@@ -128,6 +135,7 @@ export class City {
     this.me=buildAvatar(avatar||randomAvatar(this.rand)); this.me.rotation.y=Math.PI; S.add(this.me);
     this.buildHUD(title,subtitle);
     this.bindInput();
+    toonify(S); this.outline=makeOutline(this.r);
   }
 
   /* ---------- district: 3×3 lots, yours in the middle ---------- */
@@ -143,9 +151,10 @@ export class City {
     }
     const cell=this.cell=Math.max(...lots.map(l=>l.side))+22;
     const half=this.half=cell*1.5;
-    S.fog=new THREE.Fog(0xd6e9f7,cell*.8,cell*2.6);
+    S.fog=new THREE.Fog(0xdcecff,cell*.9,cell*2.8);
 
-    const g=new THREE.Mesh(new THREE.PlaneGeometry(cell*8,cell*8),new THREE.MeshStandardMaterial({color:'#86a865',roughness:1}));
+    const gt=grassTexture(); gt.repeat.set(cell*8/14,cell*8/14);
+    const g=new THREE.Mesh(new THREE.PlaneGeometry(cell*8,cell*8),new THREE.MeshStandardMaterial({color:'#ffffff',map:gt,roughness:1}));
     g.rotation.x=-Math.PI/2; g.receiveShadow=true; S.add(g);
     // roads between lots
     const road=new THREE.MeshStandardMaterial({color:'#3a3d42',roughness:.95});
@@ -164,6 +173,7 @@ export class City {
     this.treeSpots=[];
     for(const l of lots){
       const cx=l.i*cell, cz=l.j*cell, sd=l.side;
+      (this.lotBoxes||=[]).push({x:cx,z:cz,h:sd/2});
       const p=new THREE.Mesh(new THREE.BoxGeometry(sd,.15,sd),l.mine?mineM:pave); p.position.set(cx,.075,cz); p.receiveShadow=true; S.add(p);
       for(const [w,d,x,z] of [[sd,.35,0,sd/2],[sd,.35,0,-sd/2],[.35,sd,sd/2,0],[.35,sd,-sd/2,0]]){
         const c=new THREE.Mesh(new THREE.BoxGeometry(w,.3,d),l.mine?curbMine:curb); c.position.set(cx+x,.15,cz+z); S.add(c);
@@ -308,14 +318,17 @@ export class City {
       box.setFromObject(m); const c=box.getCenter(new THREE.Vector3());
       m.position.set(-c.x,.15-box.min.y,-c.z);
       m.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
-      grp.add(m);
+      toonify(m); grp.add(m);
     },undefined,e=>{ console.warn('building model failed',e); this.say('ما قدرنا نحمّل تصميم المبنى'); });
   }
 
   buildTrees(){
     const R=this.rand, spots=this.treeSpots.filter(([x,z])=>!this.roadLines.some(v=>Math.abs(x-v)<7||Math.abs(z-v)<7)), n=spots.length;
     const trunk=new THREE.InstancedMesh(new THREE.CylinderGeometry(.14,.2,2.4,6),new THREE.MeshStandardMaterial({color:'#6b4a33'}),n);
-    const crown=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1.6,0),new THREE.MeshStandardMaterial({flatShading:true,roughness:.9}),n);
+    // round, fluffy crowns made of a few overlapping balls (no hard polygons)
+    const puff=(r,x,y,z)=>new THREE.SphereGeometry(r,14,10).translate(x,y,z);
+    const crownG=mergeGeometries([puff(1.25,0,0,0),puff(.95,.95,-.25,.3),puff(.9,-.85,-.2,-.35),puff(.85,.2,.75,-.2),puff(.8,-.3,-.1,.95)]);
+    const crown=new THREE.InstancedMesh(crownG,new THREE.MeshStandardMaterial({roughness:.9}),n);
     const m=new THREE.Matrix4(), q=new THREE.Quaternion(), s=new THREE.Vector3(), p=new THREE.Vector3(), c=new THREE.Color();
     spots.forEach(([x,z],i)=>{const k=.8+R()*.7;
       m.compose(p.set(x,1.2*k,z),q.identity(),s.set(k,k,k)); trunk.setMatrixAt(i,m);
@@ -323,6 +336,19 @@ export class City {
       crown.setColorAt(i,c.setHSL(.25+R()*.08,.45,.3+R()*.1));
       this.colliders.push({x0:x-.25,x1:x+.25,z0:z-.25,z1:z+.25});});
     trunk.castShadow=crown.castShadow=true; this.scene.add(trunk,crown);
+    // bushes and little flowers on the grass
+    const bushG=mergeGeometries([puff(.55,0,.35,0),puff(.42,.45,.25,.1),puff(.4,-.42,.25,-.1)]);
+    const nb=Math.min(220,n*2), bush=new THREE.InstancedMesh(bushG,new THREE.MeshStandardMaterial({roughness:.9}),nb);
+    const flowerG=new THREE.SphereGeometry(.09,6,5), nf=600, fl=new THREE.InstancedMesh(flowerG,new THREE.MeshBasicMaterial(),nf);
+    const FC=['#ffffff','#ffd6e8','#ffe066','#ff9fb8','#c9b6ff'].map(x=>new THREE.Color(x));
+    const okSpot=(x,z)=>!this.roadLines.some(v=>Math.abs(x-v)<6.5||Math.abs(z-v)<6.5)&&!this.lotBoxes.some(b=>Math.abs(x-b.x)<b.h+1&&Math.abs(z-b.z)<b.h+1);
+    let bi=0, fi=0;
+    for(let k=0;k<4000&&(bi<nb||fi<nf);k++){
+      const x=(R()-.5)*this.half*2.1, z=(R()-.5)*this.half*2.1; if(!okSpot(x,z)) continue;
+      if(bi<nb&&R()<.25){ const sc=.7+R()*.7; m.compose(p.set(x,0,z),q.setFromEuler(new THREE.Euler(0,R()*6,0)),s.set(sc,sc,sc)); bush.setMatrixAt(bi,m); bush.setColorAt(bi,c.setHSL(.27+R()*.06,.5,.33+R()*.1)); bi++; }
+      else if(fi<nf){ m.compose(p.set(x,.07,z),q.identity(),s.set(1,1,1)); fl.setMatrixAt(fi,m); fl.setColorAt(fi,FC[Math.floor(R()*FC.length)]); fi++; }
+    }
+    bush.count=bi; fl.count=fi; bush.castShadow=true; this.scene.add(bush,fl);
   }
 
   buildTraffic(){
@@ -394,6 +420,7 @@ export class City {
   pick(cx,cy){
     const ray=new THREE.Raycaster(); ray.far=10+(this.view==='third'?this.camD:0);
     ray.setFromCamera(new THREE.Vector2(cx/innerWidth*2-1,-(cy/innerHeight)*2+1),this.camera);
+    if(this.onPickPerson&&this.onPickPerson(ray)) return;
     const hit=ray.intersectObjects(this.pickables,false)[0];
     if(!hit){this.$('.card').classList.remove('open');this.sel.visible=false;return;}
     const o=hit.object;
@@ -463,10 +490,12 @@ export class City {
     const l=Math.hypot(mx,mz); if(l>1){mx/=l;mz/=l;}
     const run=K.ShiftLeft||K.ShiftRight||Math.hypot(this.joy.x,this.joy.y)>.95;
     const sp=(run?7:4)*dt, sy=Math.sin(this.yaw), cy=Math.cos(this.yaw);
-    const wx=-sy*mz+cy*mx, wz=-cy*mz-sy*mx;
+    let wx=-sy*mz+cy*mx, wz=-cy*mz-sy*mx;
+    let moving=Math.hypot(mx,mz)>.05; this.manualInput=moving;
+    if(!moving&&this.extMove){ wx=this.extMove.x; wz=this.extMove.z; moving=true; }   // walking with a friend
     this.pos.x+=wx*sp; this.pos.z+=wz*sp;
     this.collide(this.pos);
-    const moving=Math.hypot(mx,mz)>.05; this.bob+=moving?dt*(run?11:8):0;
+    this.bob+=moving?dt*(run?11:8):0;
     const cam=this.camera, me=this.me, third=this.view==='third';
     // avatar: turn toward the walking direction, swing arms/legs
     me.position.set(this.pos.x,0,this.pos.z); me.visible=third;
@@ -494,6 +523,7 @@ export class City {
       if(inside){ const c=this.calc; this.say(`أهلاً في ${inside.name} · ${c.totalQty.toLocaleString('en-US')} منتج${this.shownCount<c.totalQty?' (المعروض '+this.shownCount.toLocaleString('en-US')+'، والباقي في المخزن)':''}`); }
       else this.say('رجعت للشارع'); }
 
+    this.social?.update(dt);
     for(const c of this.cars){
       const lane=c.dir*3, px=c.alongX?c.s:c.line-lane, pz=c.alongX?c.line+lane:c.s;
       const ax=this.pos.x-px, az=this.pos.z-pz, ahead=c.alongX?ax*c.dir:az*c.dir, side=c.alongX?Math.abs(az):Math.abs(ax);
@@ -508,11 +538,11 @@ export class City {
       p.g.rotation.y=p.alongX?(p.dir>0?Math.PI/2:-Math.PI/2):(p.dir>0?0:Math.PI);
     }
   }
-  render(){ this.r.render(this.scene,this.camera); }
+  render(){ this.outline.render(this.scene,this.camera); }
   resize(){ const a=innerWidth/innerHeight; this.camera.aspect=a; this.camera.fov=a<1?82:70; this.camera.updateProjectionMatrix(); }
 
   dispose(){
-    this.disposed=true;
+    this.disposed=true; this.social?.dispose();
     const cv=this.r.domElement;
     removeEventListener('keydown',this._kd); removeEventListener('keyup',this._ku);
     cv.removeEventListener('pointerdown',this._down); cv.removeEventListener('pointermove',this._move);

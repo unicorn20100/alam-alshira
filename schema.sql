@@ -102,3 +102,16 @@ drop policy if exists "own requests insert" on public.build_requests;
 create policy "own requests read"   on public.build_requests for select to authenticated using (owner = auth.uid());
 create policy "own requests insert" on public.build_requests for insert to authenticated
   with check (owner = auth.uid() and status = 'new');
+
+-- 7) Reports about other people (abuse in chat/voice). Only you (in the dashboard) can read them.
+create table if not exists public.reports (
+  id          bigint generated always as identity primary key,
+  reporter    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  reported    uuid not null,
+  reason      text not null check (char_length(reason) <= 200),
+  context     text check (char_length(context) <= 4000),
+  created_at  timestamptz not null default now()
+);
+alter table public.reports enable row level security;
+drop policy if exists "file a report" on public.reports;
+create policy "file a report" on public.reports for insert to authenticated with check (reporter = auth.uid());
