@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>عالم الشراء</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#05070f; --card:rgba(14,20,38,.82); --line:rgba(255,255,255,.1);
+    --text:#eef2ff; --muted:#9aa6c4; --accent:#4da3ff;
+    --avail:#3ddc84; --rented:#ff8a3d; --reserved:#ffd23d; --mine:#4da3ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font-family:"Tajawal",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-tap-highlight-color:transparent}
+  canvas{display:block;touch-action:none}
+
+  header{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;
+    gap:12px;padding:14px 18px;pointer-events:none;z-index:5}
+  header>*{pointer-events:auto}
+  .brand{display:flex;align-items:center;gap:10px}
+  .logo{width:38px;height:38px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#8fe39a,#2f9e5b 45%,#1d5fa8 80%);
+    box-shadow:0 0 18px rgba(77,163,255,.55)}
+  .brand h1{font-size:22px;font-weight:800;letter-spacing:.3px}
+  .brand small{display:block;font-size:12px;color:var(--muted);font-weight:500}
+
+  .stats{display:flex;gap:8px}
+  .stat{background:var(--card);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border-radius:14px;padding:8px 12px;min-width:84px;text-align:center}
+  .stat b{display:block;font-size:17px;font-weight:800;direction:ltr}
+  .stat span{font-size:11px;color:var(--muted)}
+
+  .tools{position:fixed;top:76px;right:18px;display:flex;flex-direction:column;gap:8px;z-index:5}
+  .btn{background:var(--card);border:1px solid var(--line);color:var(--text);font:inherit;font-size:14px;font-weight:500;
+    padding:9px 14px;border-radius:12px;cursor:pointer;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    transition:background .2s,border-color .2s}
+  .btn:hover{border-color:rgba(255,255,255,.25)}
+  .btn.on{background:rgba(77,163,255,.22);border-color:var(--accent)}
+
+  .legend{position:fixed;bottom:18px;right:18px;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:10px 14px;font-size:13px;display:none;flex-direction:column;gap:6px;z-index:5;backdrop-filter:blur(10px)}
+  .legend.show{display:flex}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-left:8px;vertical-align:-1px}
+
+  .hint{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);font-size:13px;color:var(--muted);
+    background:rgba(0,0,0,.35);padding:6px 14px;border-radius:20px;white-space:nowrap;z-index:4;transition:opacity .6s}
+
+  .panel{position:fixed;top:76px;left:18px;width:330px;max-height:calc(100% - 100px);overflow:auto;
+    background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px;z-index:6;
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    transform:translateX(-120%);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  .panel.open{transform:none}
+  .panel .close{position:absolute;top:12px;left:12px;width:30px;height:30px;border-radius:50%;border:1px solid var(--line);
+    background:transparent;color:var(--text);font-size:18px;cursor:pointer;line-height:1}
+  .panel h2{font-size:21px;font-weight:800;margin-bottom:2px}
+  .panel .country{color:var(--muted);font-size:14px;margin-bottom:12px}
+  .chip{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;margin-bottom:14px;color:#0b1020}
+  .rows{display:grid;gap:8px;margin-bottom:14px}
+  .row{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.04)}
+  .row span{color:var(--muted);font-size:13px}
+  .row b{font-size:15px}
+  .price{text-align:center;padding:14px;border-radius:16px;background:linear-gradient(135deg,rgba(77,163,255,.18),rgba(61,220,132,.12));
+    border:1px solid rgba(77,163,255,.3);margin-bottom:14px}
+  .price b{font-size:28px;font-weight:800;direction:ltr;display:inline-block}
+  .price span{display:block;color:var(--muted);font-size:12px}
+  .note{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+  .cta{width:100%;padding:13px;border:0;border-radius:14px;font:inherit;font-size:16px;font-weight:800;cursor:pointer;
+    background:linear-gradient(135deg,#3ddc84,#2bb3a0);color:#06140c}
+  .cta:disabled{background:rgba(255,255,255,.08);color:var(--muted);cursor:default}
+
+  .label{position:fixed;top:0;left:0;pointer-events:none;font-weight:800;font-size:14px;color:#fff;white-space:nowrap;
+    text-shadow:0 1px 4px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.6);transition:opacity .25s;z-index:3}
+  .label small{display:block;text-align:center;font-size:10px;font-weight:500;color:#cfe3ff}
+
+  .toast{position:fixed;top:24px;left:50%;transform:translate(-50%,-300%);background:#111a33;border:1px solid var(--accent);
+    padding:12px 18px;border-radius:14px;font-size:14px;z-index:20;transition:transform .35s;max-width:90vw;text-align:center}
+  .toast.show{transform:translate(-50%,0)}
+
+  #loader{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:var(--bg);z-index:50;transition:opacity .6s}
+  #loader .spin{width:54px;height:54px;border-radius:50%;border:4px solid rgba(255,255,255,.1);border-top-color:var(--accent);
+    animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .cta.walk{margin-top:8px;background:linear-gradient(135deg,#4da3ff,#6a5cff);color:#fff}
+  body.in-city header,body.in-city .tools,body.in-city .legend,body.in-city .hint,
+  body.in-city .panel,body.in-city #labels{display:none}
+
+  .calc{position:fixed;inset:0;background:rgba(3,6,14,.72);z-index:30;display:none;align-items:center;justify-content:center;padding:16px}
+  .calc.open{display:flex}
+  .cbox{position:relative;background:#0e1426;border:1px solid var(--line);border-radius:22px;padding:20px;width:min(980px,100%);
+    max-height:100%;overflow:auto}
+  .cbox h2{font-size:22px;font-weight:800}
+  .cbox .close{position:absolute;top:14px;left:14px;width:32px;height:32px;border-radius:50%;border:1px solid var(--line);
+    background:transparent;color:var(--text);font-size:18px;cursor:pointer}
+  .csub{color:var(--muted);font-size:13px;margin:2px 0 14px}
+  .cgrid{display:grid;grid-template-columns:1.5fr 1fr;gap:20px}
+  .cl{display:block;font-size:13px;color:var(--muted);margin:12px 0 6px;font-weight:700}
+  .cl input,.cline input,.cline select{width:100%;background:#151d36;border:1px solid var(--line);color:var(--text);border-radius:10px;
+    padding:8px 10px;font:inherit;font-size:14px;margin-top:4px}
+  .cstyles,.ccolors{display:flex;flex-wrap:wrap;gap:6px}
+  .cstyles button{background:#151d36;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
+  .cstyles button.on{border-color:var(--accent);background:rgba(77,163,255,.2)}
+  .ccolors button{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+  .ccolors button.on{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+  .cline{display:grid;grid-template-columns:1.6fr repeat(5,1fr) 30px;gap:6px;align-items:end;padding:8px;border-radius:12px;
+    background:rgba(255,255,255,.03);margin-bottom:6px}
+  .cline label{font-size:11px;color:var(--muted)}
+  .cline input{padding:6px;font-size:13px;direction:ltr;text-align:center}
+  .cline .del{height:32px;border-radius:8px;border:1px solid var(--line);background:transparent;color:#ff8a8a;cursor:pointer;font-size:16px}
+  .cadd{margin-top:4px;background:transparent;border:1px dashed var(--line);color:var(--text);border-radius:10px;padding:9px;width:100%;
+    font:inherit;cursor:pointer}
+  .cres{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .cres div{background:rgba(255,255,255,.04);border-radius:12px;padding:8px 10px}
+  .cres b{display:block;font-size:17px;font-weight:800;direction:ltr;text-align:right}
+  .cres span{font-size:11px;color:var(--muted)}
+  .cres .big{grid-column:1/-1;background:linear-gradient(135deg,rgba(77,163,255,.18),rgba(61,220,132,.12));text-align:center}
+  .cres .big b{font-size:26px;text-align:center}
+  .cres p{grid-column:1/-1;font-size:13px;padding:8px 10px;border-radius:10px}
+  .cres p.ok{background:rgba(61,220,132,.12);color:#8ff0b8}
+  .cres p.bad{background:rgba(255,120,120,.12);color:#ffb0b0}
+  #cPlan{width:100%;max-width:320px;aspect-ratio:1;display:block;margin:0 auto;background:#0a1020;border-radius:14px}
+  .clegend{font-size:12px;color:var(--muted);text-align:center;margin:6px 0 12px}
+  .clegend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 10px 0 4px;vertical-align:-1px}
+  .cta+.cta{margin-top:8px}
+  @media (max-width:760px){
+    .cgrid{grid-template-columns:1fr}
+    .cline{grid-template-columns:repeat(3,1fr)}
+    .cline select{grid-column:1/-1}
+    .calc{padding:0}.cbox{border-radius:0;height:100%}
+  }
+
+  @media (max-width:760px){
+    header{flex-direction:column;align-items:stretch;padding:10px 12px;gap:8px}
+    .brand h1{font-size:19px}
+    .stat{flex:1;min-width:0;padding:6px 4px}
+    .stat b{font-size:14px}
+    .tools{top:auto;bottom:16px;right:12px;flex-direction:row}
+    .btn{font-size:13px;padding:8px 11px}
+    .legend{bottom:64px;right:12px}
+    .hint{bottom:auto;top:128px;font-size:12px}
+    .panel{top:auto;bottom:0;left:0;right:0;width:auto;max-height:62%;border-radius:22px 22px 0 0;
+      transform:translateY(110%)}
+    .panel.open{transform:none}
+  }
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="loader"><div class="spin"></div><div>جاري بناء الكوكب…</div></div>
+
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <div><h1>عالم الشراء</h1><small>نموذج أولي · كوكب التسوق</small></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><b id="sAvail">0</b><span>قطعة متاحة</span></div>
+    <div class="stat"><b id="sRented">0</b><span>قطعة مؤجرة</span></div>
+    <div class="stat"><b id="sIncome">$0</b><span>الإيراد الشهري</span></div>
+  </div>
+</header>
+
+<div class="tools">
+  <button class="btn" id="tOverlay">عرض حالة القطع</button>
+  <button class="btn on" id="tRotate">تدوير تلقائي</button>
+  <button class="btn" id="tRandom">قطعة متاحة عشوائية</button>
+</div>
+
+<div class="legend" id="legend">
+  <div><i style="background:var(--avail)"></i>متاحة للإيجار</div>
+  <div><i style="background:var(--rented)"></i>مؤجرة</div>
+  <div><i style="background:var(--reserved)"></i>قيد الحجز</div>
+  <div><i style="background:var(--mine)"></i>محجوزة لك</div>
+</div>
+
+<div class="hint" id="hint">اسحب لتدوير الكوكب · قرّب بإصبعين أو بالعجلة · اضغط على أي قطعة</div>
+<aside class="panel" id="panel"></aside>
+<div class="toast" id="toast"></div>
+
+<div class="calc" id="calc"><div class="cbox">
+  <button class="close" id="cClose">×</button>
+  <h2>احسب مساحتك وابنِ محلك</h2>
+  <div class="csub" id="cSub"></div>
+  <div class="cgrid">
+    <div>
+      <label class="cl">اسم المحل<input id="cName" placeholder="مثلاً: سوق الخير"></label>
+      <div class="cl">شكل المبنى</div><div class="cstyles" id="cStyles"></div>
+      <div class="cl">اللون</div><div class="ccolors" id="cColors"></div>
+      <div class="cl">منتجاتك (المقاس الحقيقي لكل قطعة)</div>
+      <div id="cRows"></div>
+      <button class="cadd" id="cAdd">+ أضف منتج</button>
+    </div>
+    <div>
+      <div class="cl">النتيجة</div>
+      <div class="cres" id="cRes"></div>
+      <div class="cl">مخطط المحل من فوق</div>
+      <canvas id="cPlan" width="320" height="320"></canvas>
+      <div class="clegend"><i style="background:#9aa6c4"></i>رفوف <i style="background:#f2a93b"></i>منتجات كبيرة</div>
+      <button class="cta" id="cBuild">🏗️ ابنِ المحل وادخله</button>
+    </div>
+  </div>
+</div></div>
+<div id="labels"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { City, STYLES, COLORS } from './city.js';
+import { PRESETS, makeLine, calcSpace, demoLines } from './catalog.js';
+
+/* ---------- random + noise ---------- */
+let seed = 20261114;
+const rand = () => (seed = (seed * 16807) % 2147483647, (seed - 1) / 2147483646);
+const perm = new Uint8Array(512);
+{ const p=[...Array(256).keys()];
+  for(let i=255;i>0;i--){const j=Math.floor(rand()*(i+1));[p[i],p[j]]=[p[j],p[i]];}
+  for(let i=0;i<512;i++)perm[i]=p[i&255]; }
+const h3=(x,y,z)=>perm[perm[perm[x&255]+(y&255)]+(z&255)]/255;
+function vnoise(x,y,z){
+  const X=Math.floor(x),Y=Math.floor(y),Z=Math.floor(z);
+  const fx=x-X,fy=y-Y,fz=z-Z;
+  const u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy),w=fz*fz*(3-2*fz);
+  const a=h3(X,Y,Z),b=h3(X+1,Y,Z),c=h3(X,Y+1,Z),d=h3(X+1,Y+1,Z);
+  const e=h3(X,Y,Z+1),f=h3(X+1,Y,Z+1),g=h3(X,Y+1,Z+1),hh=h3(X+1,Y+1,Z+1);
+  const x1=a+(b-a)*u,x2=c+(d-c)*u,x3=e+(f-e)*u,x4=g+(hh-g)*u;
+  const y1=x1+(x2-x1)*v,y2=x3+(x4-x3)*v;
+  return (y1+(y2-y1)*w)*2-1;
+}
+function fbm(x,y,z,oct){let s=0,a=.5,f=1;for(let i=0;i<oct;i++){s+=a*vnoise(x*f,y*f,z*f);f*=2.03;a*=.5;}return s;}
+const elevation=d=>fbm(d.x*1.5+11.3,d.y*1.5-4.1,d.z*1.5+7.7,6);
+const riverN   =d=>Math.abs(fbm(d.x*1.1-21.5,d.y*1.1+3.3,d.z*1.1+9.9,4));
+const moisture =d=>fbm(d.x*2.1+40.2,d.y*2.1+1.7,d.z*2.1-13.4,3);
+
+/* ---------- data ---------- */
+const COUNTRIES=['مملكة الواحات','جمهورية الزمرد','أرض الذهب','سلطنة النجوم','وادي الحرير',
+  'جزر اللؤلؤ','بلاد الأرز','إمارة الصقر','مدينة القمر'];
+const TENANTS=[['دار العطور','عطور'],['أزياء الرمال','أزياء'],['إلكترونيات المستقبل','إلكترونيات'],
+  ['بيت القهوة','مقهى'],['سوق التمور','أغذية'],['عالم الألعاب','ألعاب'],['ركن الكتب','كتب'],
+  ['مجوهرات اللؤلؤ','مجوهرات'],['أثاث النخلة','أثاث'],['رياضة بلس','رياضة'],['هايبر الخير','سوبرماركت'],
+  ['ساعات الزمن','ساعات'],['عيون للنظارات','نظارات'],['مطعم السفرة','مطاعم'],['حلويات السكر','حلويات'],
+  ['جوالات الشرق','إلكترونيات'],['عباءات الفخامة','أزياء'],['بيت الورد','زهور']];
+const TYPE_LABEL={land:'أرض منبسطة',forest:'غابة',desert:'صحراء',mountain:'جبلية',water:'بحر / بحيرة'};
+const BASE_RENT={land:1500,forest:1100,desert:950,mountain:800,water:700};
+const STATUS={avail:['متاحة للإيجار','#3ddc84'],rented:['مؤجرة','#ff8a3d'],reserved:['قيد الحجز','#ffd23d'],mine:['محجوزة لك','#4da3ff']};
+
+/* ---------- scene ---------- */
+const R=10, DETAIL=48, AMP=0.75, NPLOTS=360;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.1,1000);
+{ // fit the whole planet on screen (portrait phones need more distance)
+  const half=Math.min(Math.tan(THREE.MathUtils.degToRad(22.5)),Math.tan(THREE.MathUtils.degToRad(22.5))*innerWidth/innerHeight);
+  const dist=Math.min(58,Math.max(30,R*1.3/half));
+  camera.position.set(0,.18,1).normalize().multiplyScalar(dist); }
+scene.add(camera);
+const sun=new THREE.DirectionalLight(0xfff4e0,2.4); sun.position.set(-12,10,6); camera.add(sun);
+scene.add(new THREE.HemisphereLight(0xbfdcff,0x2a2030,.9));
+const controls=new OrbitControls(camera,renderer.domElement);
+Object.assign(controls,{enableDamping:true,dampingFactor:.07,enablePan:false,minDistance:13,maxDistance:60,
+  autoRotate:true,autoRotateSpeed:.45});
+
+// stars
+{ const n=2500,p=new Float32Array(n*3);
+  for(let i=0;i<n;i++){const v=new THREE.Vector3(rand()*2-1,rand()*2-1,rand()*2-1).normalize().multiplyScalar(300+rand()*200);p.set([v.x,v.y,v.z],i*3);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:1.1,sizeAttenuation:false,transparent:true,opacity:.8}))); }
+
+// atmosphere
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(R*1.13,64,64),new THREE.ShaderMaterial({
+  vertexShader:`varying vec3 vN;void main(){vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec3 vN;void main(){float i=pow(.72-dot(vN,vec3(0,0,1.)),3.);gl_FragColor=vec4(.35,.7,1.,1.)*i;}`,
+  side:THREE.BackSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false})));
+
+/* ---------- build planet ---------- */
+let planet, plots=[], facePlot, faceBorder, baseCol, colAttr, fCount;
+let selected=-1, overlay=false;
+const tmpC=new THREE.Color(), white=new THREE.Color('#ffffff');
+
+function build(){
+  const geo=new THREE.IcosahedronGeometry(1,DETAIL);
+  const pos=geo.attributes.position, vCount=pos.count; fCount=vCount/3;
+  const v=new THREE.Vector3();
+  const raw=new Float32Array(vCount), riv=new Float32Array(vCount);
+  for(let i=0;i<vCount;i++){v.fromBufferAttribute(pos,i).normalize();raw[i]=elevation(v);riv[i]=riverN(v);}
+  const sorted=Float32Array.from(raw).sort(), pct=q=>sorted[Math.floor(q*(vCount-1))];
+  const seaH=pct(.14), mountH=pct(.85), snowH=pct(.965), maxH=sorted[vCount-1], minH=sorted[0];
+  const rivT=Float32Array.from(riv).sort()[Math.floor(.035*vCount)];
+  const hv=new Float32Array(vCount);
+  for(let i=0;i<vCount;i++){
+    let h=raw[i];
+    if(riv[i]<rivT && h<mountH && h>seaH) h=seaH-1e-4;   // carve rivers / valleys
+    hv[i]=h;
+    v.fromBufferAttribute(pos,i).normalize();
+    const t=Math.max(0,(h-seaH)/(maxH-seaH));
+    v.multiplyScalar(h<seaH?R:R+0.05+Math.pow(t,1.7)*AMP);
+    pos.setXYZ(i,v.x,v.y,v.z);
+  }
+  geo.computeVertexNormals();
+
+  // plots (Fibonacci sphere with jitter)
+  const gold=Math.PI*(3-Math.sqrt(5));
+  for(let i=0;i<NPLOTS;i++){
+    const y=1-(i+.5)*2/NPLOTS, r=Math.sqrt(1-y*y), th=i*gold;
+    const d=new THREE.Vector3(Math.cos(th)*r+(rand()-.5)*.05,y+(rand()-.5)*.05,Math.sin(th)*r+(rand()-.5)*.05).normalize();
+    plots.push({id:i,dir:d,faces:[],counts:{land:0,forest:0,desert:0,mountain:0,water:0}});
+  }
+  // countries
+  const seeds=[];
+  while(seeds.length<COUNTRIES.length){
+    const d=new THREE.Vector3(rand()*2-1,rand()*2-1,rand()*2-1).normalize();
+    if(seeds.every(s=>s.dot(d)<.55)) seeds.push(d);
+  }
+  for(const p of plots){let b=-2;seeds.forEach((s,k)=>{const dd=s.dot(p.dir);if(dd>b){b=dd;p.country=k;}});}
+
+  // faces
+  facePlot=new Uint16Array(fCount); faceBorder=new Uint8Array(fCount); baseCol=new Float32Array(fCount*3);
+  const P=plots.map(p=>p.dir), C=new THREE.Vector3(), a=new THREE.Vector3(), b=new THREE.Vector3(), c=new THREE.Vector3();
+  const COL={deep:new THREE.Color('#1b4f96'),shallow:new THREE.Color('#3aa6d6'),river:new THREE.Color('#4cc0e6'),
+    sand:new THREE.Color('#e9d59d'),grass:new THREE.Color('#86c95c'),grass2:new THREE.Color('#5aa84a'),
+    forest:new THREE.Color('#2e7a3c'),desert:new THREE.Color('#dcb56c'),rock:new THREE.Color('#8b8073'),snow:new THREE.Color('#f3f6fa')};
+  window._centroids=new Float32Array(fCount*3);
+  const faceType=new Uint8Array(fCount); // 0 land 1 forest 2 desert 3 mountain 4 water
+  for(let f=0;f<fCount;f++){
+    a.fromBufferAttribute(pos,f*3);b.fromBufferAttribute(pos,f*3+1);c.fromBufferAttribute(pos,f*3+2);
+    C.copy(a).add(b).add(c).divideScalar(3); _centroids.set([C.x,C.y,C.z],f*3); C.normalize();
+    const h0=hv[f*3],h1=hv[f*3+1],h2=hv[f*3+2], avg=(h0+h1+h2)/3;
+    const rawAvg=(raw[f*3]+raw[f*3+1]+raw[f*3+2])/3;
+    let col, type;
+    if(h0<seaH&&h1<seaH&&h2<seaH){
+      type=4;
+      if(rawAvg>=seaH) col=COL.river.clone();
+      else col=COL.shallow.clone().lerp(COL.deep,Math.min(1,(seaH-rawAvg)/(seaH-minH)*2.2));
+    } else {
+      const m=moisture(C);
+      if(avg>snowH){col=COL.snow.clone();type=3;}
+      else if(avg>mountH){col=COL.rock.clone().lerp(COL.snow,(avg-mountH)/(snowH-mountH)*.25);type=3;}
+      else if(avg<seaH+(mountH-seaH)*.05){col=COL.sand.clone();type=0;}
+      else if(m>.12){col=COL.forest.clone();type=1;}
+      else if(m<-.2){col=COL.desert.clone();type=2;}
+      else {col=COL.grass.clone().lerp(COL.grass2,THREE.MathUtils.clamp((m+.2)/.32,0,1));type=0;}
+    }
+    col.multiplyScalar(.94+rand()*.1);
+    baseCol.set([col.r,col.g,col.b],f*3); faceType[f]=type;
+    // nearest two plots
+    let d1=-2,d2=-2,i1=0,i2=0;
+    for(let k=0;k<NPLOTS;k++){const q=P[k],dd=q.x*C.x+q.y*C.y+q.z*C.z;
+      if(dd>d1){d2=d1;i2=i1;d1=dd;i1=k;}else if(dd>d2){d2=dd;i2=k;}}
+    facePlot[f]=i1; plots[i1].faces.push(f);
+    plots[i1].counts[['land','forest','desert','mountain','water'][type]]++;
+    if(Math.acos(Math.min(1,d2))-Math.acos(Math.min(1,d1))<.02)
+      faceBorder[f]=plots[i1].country!==plots[i2].country?2:1;
+  }
+
+  // plot details
+  const capitals=seeds.map((s,k)=>{let best=null,bd=-2;
+    for(const p of plots) if(p.country===k){const w=p.counts.water/p.faces.length;const dd=s.dot(p.dir)-(w>.4?1:0);if(dd>bd){bd=dd;best=p;}}
+    return best;});
+  for(const p of plots){
+    const n=p.faces.length, cnt=p.counts;
+    p.type = cnt.water/n>.55 ? 'water' : ['land','forest','desert','mountain'].reduce((x,y)=>cnt[y]>cnt[x]?y:x,'land');
+    const cap=capitals[p.country];
+    p.central=Math.exp(-p.dir.angleTo(cap.dir)/.32);
+    p.isCapital=p===cap;
+    p.rent=Math.round(BASE_RENT[p.type]*(1+2.6*p.central)/50)*50;
+    p.area=n*75;
+    // surface point near centre
+    let bf=p.faces[0],bd=-2;for(const f of p.faces){C.fromArray(_centroids,f*3).normalize();const dd=C.dot(p.dir);if(dd>bd){bd=dd;bf=f;}}
+    p.surf=new THREE.Vector3().fromArray(_centroids,bf*3);
+    const r=rand();
+    if(p.isCapital){p.status='rented';p.tenant=['مول '+COUNTRIES[p.country],'مول تجاري'];}
+    else if(r<(.1+.55*p.central)*(p.type==='water'?.3:1)){p.status='rented';p.tenant=TENANTS[Math.floor(rand()*TENANTS.length)];}
+    else if(r>.95){p.status='reserved';}
+    else p.status='avail';
+    p.months=1+Math.floor(rand()*18);
+  }
+  window._capitals=capitals;
+
+  // colours
+  const colors=new Float32Array(vCount*3);
+  colAttr=new THREE.BufferAttribute(colors,3); geo.setAttribute('color',colAttr);
+  for(let f=0;f<fCount;f++) paintFace(f);
+  planet=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.88,metalness:0}));
+  scene.add(planet);
+
+  // buildings + trees
+  const up=new THREE.Vector3(0,1,0), q=new THREE.Quaternion(), qs=new THREE.Quaternion(), m=new THREE.Matrix4(), s=new THREE.Vector3();
+  const place=(f,sx,sy,spin)=>{C.fromArray(_centroids,f*3);const d=C.clone().normalize();
+    q.setFromUnitVectors(up,d);qs.setFromAxisAngle(d,spin);q.premultiply(qs);s.set(sx,sy,sx);m.compose(C,q,s);return m;};
+  const bGeo=new THREE.BoxGeometry(1,1,1); bGeo.translate(0,.5,0);
+  const bMesh=new THREE.InstancedMesh(bGeo,new THREE.MeshStandardMaterial({roughness:.4,metalness:.15}),2500);
+  const BCOL=['#f4f4ef','#cfe3f5','#9cc6e8','#e9d8b8','#ffffff','#b9c8d8','#7fb2e0'].map(x=>new THREE.Color(x));
+  let bi=0; const busy=new Set();
+  for(const p of plots){
+    if(p.status!=='rented'||p.type==='water') continue;
+    const land=p.faces.filter(f=>faceType[f]!==4).sort((x,y)=>{
+      C.fromArray(_centroids,x*3).normalize();const dx=C.dot(p.dir);C.fromArray(_centroids,y*3).normalize();return C.dot(p.dir)-dx;});
+    const nb=p.isCapital?16:2+Math.floor(p.central*5);
+    for(let k=0;k<nb&&k*2<land.length&&bi<2500;k++){
+      const f=land[k*2+(p.isCapital?0:Math.floor(rand()*2))]; busy.add(f);
+      const w=.09+rand()*.07, h=(p.isCapital?.35:.1)+rand()*(.2+p.central*.6);
+      bMesh.setMatrixAt(bi,place(f,w,h,rand()*Math.PI)); bMesh.setColorAt(bi,BCOL[Math.floor(rand()*BCOL.length)]); bi++;
+    }
+  }
+  bMesh.count=bi; scene.add(bMesh);
+
+  const tGeo=new THREE.ConeGeometry(.055,.17,5); tGeo.translate(0,.085,0);
+  const tMesh=new THREE.InstancedMesh(tGeo,new THREE.MeshStandardMaterial({flatShading:true,roughness:.9}),14000);
+  let ti=0; const tc=new THREE.Color();
+  for(let f=0;f<fCount&&ti<14000;f++){
+    if(busy.has(f)) continue;
+    const pr=faceType[f]===1?.55:faceType[f]===0?.025:0;
+    if(rand()<pr){const sc=.7+rand()*.7;tMesh.setMatrixAt(ti,place(f,sc,sc,0));
+      tc.setHSL(.27+rand()*.08,.5,.22+rand()*.12);tMesh.setColorAt(ti,tc);ti++;}
+  }
+  tMesh.count=ti; scene.add(tMesh);
+
+  // country labels
+  const box=document.getElementById('labels');
+  capitals.forEach((p,k)=>{const el=document.createElement('div');el.className='label';
+    el.innerHTML=`${COUNTRIES[k]}<small>العاصمة · مول ${COUNTRIES[k]}</small>`;box.appendChild(el);p.label=el;});
+  updateStats();
+}
+
+function paintFace(f){
+  tmpC.setRGB(baseCol[f*3],baseCol[f*3+1],baseCol[f*3+2]);
+  const p=plots[facePlot[f]];
+  if(overlay) tmpC.lerp(new THREE.Color(STATUS[p.status][1]),.5);
+  if(faceBorder[f]===1) tmpC.multiplyScalar(overlay?.55:.78);
+  else if(faceBorder[f]===2) tmpC.lerp(white,.75);
+  if(p.id===selected) tmpC.lerp(white,.38);
+  for(let k=0;k<3;k++) colAttr.setXYZ(f*3+k,tmpC.r,tmpC.g,tmpC.b);
+}
+const repaintPlot=p=>{if(!p)return;for(const f of p.faces)paintFace(f);colAttr.needsUpdate=true;};
+const repaintAll=()=>{for(let f=0;f<fCount;f++)paintFace(f);colAttr.needsUpdate=true;};
+
+function updateStats(){
+  let a=0,r=0,inc=0;for(const p of plots){if(p.status==='avail')a++;if(p.status==='rented'){r++;inc+=p.rent;}}
+  sAvail.textContent=a; sRented.textContent=r; sIncome.textContent='$'+inc.toLocaleString('en-US');
+}
+
+/* ---------- selection pin ---------- */
+const pin=new THREE.Group();
+{const mat=new THREE.MeshStandardMaterial({color:0x4da3ff,emissive:0x1d5fd0,emissiveIntensity:.6,roughness:.3});
+ const head=new THREE.Mesh(new THREE.SphereGeometry(.16,20,16),mat);head.position.y=.52;
+ const tip=new THREE.Mesh(new THREE.ConeGeometry(.11,.38,16),mat);tip.rotation.x=Math.PI;tip.position.y=.22;
+ pin.add(head,tip);pin.visible=false;scene.add(pin);}
+
+/* ---------- panel ---------- */
+const panel=document.getElementById('panel');
+function openPanel(p){
+  const prev=plots[selected]; selected=p.id; repaintPlot(prev); repaintPlot(p);
+  pin.visible=true; pin.userData.base=p.surf.clone(); pin.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),p.dir);
+  flyTo(p.dir);
+  const [sLabel,sCol]=STATUS[p.status];
+  const tenant=p.status==='rented'
+    ?`<div class="row"><span>المستأجر</span><b>${p.tenant[0]}</b></div><div class="row"><span>النشاط</span><b>${p.tenant[1]}</b></div>
+      <div class="row"><span>مدة العقد حتى الآن</span><b>${p.months} شهر</b></div>`:'';
+  const note=p.type==='water'?'قطعة في الماء، مناسبة لمحل هادئ بعيد عن الزحمة. يُبنى عليها جزيرة أو منصة عائمة بتصميم خاص.'
+    :p.central>.5?'قريبة من العاصمة ومركز الزحمة، وعليها أعلى عدد زوار، فسعرها أعلى.'
+    :'منطقة هادئة بسعر أقل. تناسب المتاجر الكبيرة اللي تحتاج مساحة واسعة.';
+  const land=p.type!=='water';
+  let btn;
+  if(p.status==='avail') btn=land?`<button class="cta" id="build">🏗️ احسب مساحتك وابنِ محلك</button>`
+                                  :`<button class="cta" id="book">احجز هذه القطعة</button>`;
+  else if(p.status==='mine') btn=!land?`<button class="cta" disabled>محجوزة لك ✓</button>`
+    :p.store?`<button class="cta" id="walk">🚶 ادخل محلك "${p.store.name}"</button><button class="cta walk" id="build">✏️ عدّل المحل</button>`
+    :`<button class="cta" id="build">🏗️ ابنِ محلك</button>`;
+  else if(p.status==='rented'&&land) btn=`<button class="cta walk" id="walk">🚶 ادخل محل ${p.tenant[0]}</button>`;
+  else btn=`<button class="cta" disabled>${p.status==='reserved'?'قيد الحجز':'غير متاحة حالياً'}</button>`;
+  panel.innerHTML=`<button class="close" id="pclose">×</button>
+    <h2>قطعة رقم ${p.id+1}${p.isCapital?' · العاصمة':''}</h2>
+    <div class="country">${COUNTRIES[p.country]}</div>
+    <span class="chip" style="background:${sCol}">${sLabel}</span>
+    <div class="price"><b>$${rate(p).toFixed(2)}</b><span>سعر المتر المربع شهرياً · تأجر على قد حاجتك</span></div>
+    <div class="rows">
+      <div class="row"><span>نوع الأرض</span><b>${TYPE_LABEL[p.type]}</b></div>
+      <div class="row"><span>مساحة القطعة كاملة</span><b>${p.area.toLocaleString('en-US')} م²</b></div>
+      ${p.store?`<div class="row"><span>مساحتك المستأجرة</span><b>${p.store.plot.toLocaleString('en-US')} م² · $${Math.round(p.store.plot*rate(p)).toLocaleString('en-US')}/شهر</b></div>`:''}
+      <div class="row"><span>القرب من العاصمة</span><b>${Math.round(p.central*100)}٪</b></div>
+      ${tenant}
+    </div>
+    <p class="note">${note}</p>${btn}`;
+  panel.classList.add('open'); setViewShift();
+  pclose.onclick=closePanel;
+  const wk=document.getElementById('walk'); if(wk) wk.onclick=()=>enterCity(p);
+  const bd=document.getElementById('build'); if(bd) bd.onclick=()=>openCalc(p);
+  const b=document.getElementById('book');
+  if(b) b.onclick=()=>{p.status='mine';saveMine();repaintPlot(p);updateStats();openPanel(p);
+    toast('تم حجز القطعة رقم '+(p.id+1)+' (نموذج تجريبي، بدون دفع حقيقي)');};
+}
+const rate=p=>p.rent/p.area;   // $ per m² per month
+
+/* ---------- saved plots (this browser only) ---------- */
+const SAVE_KEY='alam-alshira-v1';
+function saveMine(){
+  const out={}; for(const p of plots) if(p.status==='mine') out[p.id]=p.store||null;
+  try{ localStorage.setItem(SAVE_KEY,JSON.stringify(out)); }catch(e){}
+}
+function loadMine(){
+  let data={}; try{ data=JSON.parse(localStorage.getItem(SAVE_KEY)||'{}'); }catch(e){}
+  for(const id in data){ const p=plots[id]; if(!p) continue; p.status='mine'; if(data[id]) p.store=data[id]; }
+}
+
+/* ---------- space calculator ---------- */
+const calcEl=document.getElementById('calc');
+let calcPlot=null, cLines=[], cStyle='crystal', cColor=COLORS[0], cTimer;
+function openCalc(p){
+  calcPlot=p;
+  const s=p.store;
+  cLines=s?s.lines.map(l=>({...l,size:[...l.size]})):[makeLine('can',2000),makeLine('water',300),makeLine('cereal',150)];
+  cStyle=s?.style||STYLES[p.id%STYLES.length].id; cColor=s?.color||COLORS[p.id%COLORS.length];
+  cName.value=s?.name||'';
+  cSub.textContent=`${COUNTRIES[p.country]} · قطعة ${p.id+1} · سعر المتر $${rate(p).toFixed(2)} شهرياً`;
+  cStyles.innerHTML=STYLES.map(t=>`<button data-s="${t.id}" class="${t.id===cStyle?'on':''}">${t.name}</button>`).join('');
+  cColors.innerHTML=COLORS.map(c=>`<button data-c="${c}" style="background:${c}" class="${c===cColor?'on':''}"></button>`).join('');
+  renderLines(); recalc(); calcEl.classList.add('open');
+}
+cStyles.onclick=e=>{const b=e.target.closest('[data-s]');if(!b)return;cStyle=b.dataset.s;[...cStyles.children].forEach(x=>x.classList.toggle('on',x===b));};
+cColors.onclick=e=>{const b=e.target.closest('[data-c]');if(!b)return;cColor=b.dataset.c;[...cColors.children].forEach(x=>x.classList.toggle('on',x===b));};
+document.getElementById('cClose').onclick=()=>calcEl.classList.remove('open');
+document.getElementById('cAdd').onclick=()=>{cLines.push(makeLine('custom',100));renderLines();recalc();};
+function renderLines(){
+  cRows.innerHTML=cLines.map((l,i)=>`<div class="cline" data-i="${i}">
+    <select data-k="preset">${PRESETS.map(p=>`<option value="${p.id}" ${p.id===l.preset?'selected':''}>${p.name}</option>`).join('')}</select>
+    <label>الكمية<input data-k="qty" type="number" min="0" value="${l.qty}"></label>
+    <label>عرض سم<input data-k="w" type="number" min="1" step="0.1" value="${l.size[0]}"></label>
+    <label>ارتفاع سم<input data-k="h" type="number" min="1" step="0.1" value="${l.size[1]}"></label>
+    <label>عمق سم<input data-k="d" type="number" min="1" step="0.1" value="${l.size[2]}"></label>
+    <label>السعر $<input data-k="price" type="number" min="0" step="0.01" value="${l.price}"></label>
+    <button class="del" data-k="del" title="حذف">×</button></div>`).join('');
+}
+cRows.addEventListener('input',e=>{
+  const row=e.target.closest('.cline'); if(!row) return; const l=cLines[+row.dataset.i], k=e.target.dataset.k, v=e.target.value;
+  if(k==='preset'){ cLines[+row.dataset.i]=makeLine(v,l.qty); renderLines(); }
+  else if(k==='qty') l.qty=Math.max(0,Math.floor(+v||0));
+  else if(k==='price') l.price=+v||0;
+  else if(k){ l.size[{w:0,h:1,d:2}[k]]=Math.max(.5,+v||0); }
+  clearTimeout(cTimer); cTimer=setTimeout(recalc,200);
+});
+cRows.addEventListener('click',e=>{ if(e.target.dataset.k!=='del') return; cLines.splice(+e.target.closest('.cline').dataset.i,1); renderLines(); recalc(); });
+let lastCalc=null;
+function recalc(){
+  const r=lastCalc=calcSpace(cLines), p=calcPlot, n=v=>Math.round(v).toLocaleString('en-US');
+  const fits=r.plotNeeded<=p.area;
+  cRes.innerHTML=`
+    <div><b>${n(r.totalQty)}</b><span>منتج</span></div>
+    <div><b>${n(r.units)}</b><span>وحدة رف (${n(r.shelfLen)} م رفوف)</span></div>
+    <div><b>${n(r.bigQty)}</b><span>منتج كبير على الأرض</span></div>
+    <div><b>${(r.R*2).toFixed(1)} م</b><span>قطر المبنى</span></div>
+    <div><b>${n(r.footprint)} م²</b><span>مساحة المبنى</span></div>
+    <div><b>${n(r.plotNeeded)} م²</b><span>الأرض اللي تحتاجها</span></div>
+    <div class="big"><b>$${n(r.plotNeeded*rate(p))}</b><span>إيجارك الشهري</span></div>
+    <p class="${fits?'ok':'bad'}">${!r.fits?'المنتجات كثيرة جداً لمبنى واحد، قسّمها على أكثر من محل.'
+      :fits?`القطعة تكفيك ✓ (تستخدم ${Math.round(r.plotNeeded/p.area*100)}٪ منها)`:`القطعة صغيرة عليك، تحتاج ${n(r.plotNeeded)} م² والقطعة ${n(p.area)} م²`}</p>`;
+  drawPlan(r);
+  cBuild.disabled=!(r.fits&&fits&&r.totalQty>0);
+}
+function drawPlan(r){ // top-down preview of the store the calculator planned
+  const cv=document.getElementById('cPlan'), x=cv.getContext('2d'), W=cv.width, H=cv.height, k=(Math.min(W,H)/2-10)/r.R;
+  x.clearRect(0,0,W,H); x.save(); x.translate(W/2,H/2);
+  x.fillStyle='rgba(255,255,255,.06)'; x.strokeStyle=cColor; x.lineWidth=3;
+  const dh=r.plan.doorHalf; x.beginPath(); x.arc(0,0,r.R*k,Math.PI/2+dh,Math.PI/2-dh+Math.PI*2); x.fill(); x.stroke();
+  x.fillStyle='#9aa6c4';
+  for(const row of r.plan.rows) x.fillRect((row.x-.6)*k,row.z0*k,1.2*k,row.units*1.2*k);
+  x.fillStyle='#f2a93b';
+  for(const s of r.plan.slots){ x.save(); x.translate(Math.sin(s.a)*s.r*k,Math.cos(s.a)*s.r*k); x.rotate(-s.a);
+    x.fillRect(-s.line.s[0]/2*k,-s.line.s[2]/2*k,Math.max(1.5,s.line.s[0]*k),Math.max(1.5,s.line.s[2]*k)); x.restore(); }
+  x.fillStyle='#3ddc84'; x.font='700 12px Tajawal'; x.textAlign='center'; x.fillText('المدخل',0,r.R*k+2); x.restore();
+}
+cBuild.onclick=()=>{
+  const p=calcPlot, name=cName.value.trim()||'محلي';
+  p.store={name,style:cStyle,color:cColor,lines:cLines.filter(l=>l.qty>0),plot:lastCalc.plotNeeded};
+  p.status='mine'; saveMine(); repaintPlot(p); updateStats(); calcEl.classList.remove('open');
+  toast(`تم بناء "${name}" على ${lastCalc.plotNeeded.toLocaleString('en-US')} م² (نموذج تجريبي)`);
+  openPanel(p); enterCity(p);
+};
+
+/* ---------- walk mode (city) ---------- */
+let city=null;
+async function enterCity(p){
+  if(city) return;
+  let store=p.store||null;
+  if(!store&&p.status==='rented'){
+    const r=calcSpace(demoLines(p.tenant[1]));
+    store={name:p.tenant[0],style:STYLES[p.id%STYLES.length].id,color:COLORS[(p.id*3)%COLORS.length],lines:demoLines(p.tenant[1]),plot:r.plotNeeded};
+  }
+  document.body.classList.add('in-city'); controls.enabled=false;
+  city=await City.create({renderer,seed:p.id,store,
+    title:`${COUNTRIES[p.country]} · قطعة ${p.id+1}`,subtitle:store?store.name:'أرض بدون مبنى',
+    onExit:()=>{city.dispose();city=null;window.__city=null;document.body.classList.remove('in-city');controls.enabled=true;}});
+  window.__city=city; // handy for debugging in the browser console
+}
+function closePanel(){panel.classList.remove('open');setViewShift();const p=plots[selected];selected=-1;repaintPlot(p);pin.visible=false;}
+function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('show');
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),3000);}
+
+/* ---------- camera fly ---------- */
+let fly=null;
+const isPhone=()=>innerWidth<=760;
+// on phones the panel covers the bottom half, so shift the planet up while it is open
+function setViewShift(){
+  if(isPhone()&&panel.classList.contains('open')) camera.setViewOffset(innerWidth,innerHeight,0,innerHeight*.24,innerWidth,innerHeight);
+  else camera.clearViewOffset();
+}
+function flyTo(dir){
+  controls.autoRotate=false; tRotate.classList.remove('on');
+  const start=camera.position.clone(), len=start.length();
+  const end=isPhone()?THREE.MathUtils.clamp(len,24,30):THREE.MathUtils.clamp(len,17,24);
+  fly={a:start.clone().normalize(),q:new THREE.Quaternion().setFromUnitVectors(start.clone().normalize(),dir),l0:len,l1:end,t:0};
+}
+
+/* ---------- picking ---------- */
+const ray=new THREE.Raycaster(), ptr=new THREE.Vector2(); let down=null;
+renderer.domElement.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];});
+renderer.domElement.addEventListener('pointerup',e=>{
+  if(city||!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6) return;
+  ptr.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); ray.setFromCamera(ptr,camera);
+  const hit=ray.intersectObject(planet)[0];
+  if(hit) openPanel(plots[facePlot[hit.faceIndex]]); else if(selected>=0) closePanel();
+});
+controls.addEventListener('start',()=>{document.getElementById('hint').style.opacity=0;
+  if(controls.autoRotate){controls.autoRotate=false;tRotate.classList.remove('on');}});
+
+/* ---------- buttons ---------- */
+tOverlay.onclick=()=>{overlay=!overlay;tOverlay.classList.toggle('on',overlay);legend.classList.toggle('show',overlay);repaintAll();};
+tRotate.onclick=()=>{controls.autoRotate=!controls.autoRotate;tRotate.classList.toggle('on',controls.autoRotate);};
+tRandom.onclick=()=>{const av=plots.filter(p=>p.status==='avail');openPanel(av[Math.floor(Math.random()*av.length)]);};
+
+/* ---------- loop ---------- */
+const clock=new THREE.Clock(), proj=new THREE.Vector3(), camDir=new THREE.Vector3();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+  if(city){ city.update(dt); city.render(); return; }
+  if(fly){
+    fly.t=Math.min(1,fly.t+dt/1.1); const e=fly.t<.5?2*fly.t*fly.t:1-Math.pow(-2*fly.t+2,2)/2;
+    const qt=new THREE.Quaternion().slerp(fly.q,e);
+    camera.position.copy(fly.a).applyQuaternion(qt).multiplyScalar(THREE.MathUtils.lerp(fly.l0,fly.l1,e));
+    camera.lookAt(0,0,0); if(fly.t>=1) fly=null;
+  } else controls.update();
+  controls.rotateSpeed=.25+(camera.position.length()-13)/47*.75;
+  if(pin.visible){const t=clock.elapsedTime;pin.position.copy(pin.userData.base).addScaledVector(pin.up.clone().applyQuaternion(pin.quaternion),.06+Math.sin(t*3)*.06);pin.rotateY(dt*1.5);}
+  camDir.copy(camera.position).normalize();
+  for(const p of (window._capitals||[])){
+    const vis=camDir.dot(p.dir); const el=p.label;
+    if(vis<.35){el.style.opacity=0;continue;}
+    proj.copy(p.dir).multiplyScalar(R+1.1).project(camera);
+    el.style.opacity=Math.min(1,(vis-.35)*4);
+    el.style.transform=`translate(${(proj.x*.5+.5)*innerWidth}px,${(-proj.y*.5+.5)*innerHeight}px) translate(-50%,-50%)`;
+  }
+  renderer.render(scene,camera);
+}
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);setViewShift();city?.resize();});
+
+requestAnimationFrame(()=>setTimeout(()=>{
+  build(); loadMine(); updateStats(); repaintAll(); animate();
+  window.__app={plots,openPanel,enterCity,openCalc}; // handy for debugging in the browser console
+  const l=document.getElementById('loader'); l.style.opacity=0; setTimeout(()=>l.remove(),600);
+},30));
+</script>
+</body>
+</html>
