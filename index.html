@@ -146,6 +146,43 @@
       transform:translateY(110%)}
     .panel.open{transform:none}
   }
+
+  /* ---------- sign-up + avatar maker ---------- */
+  .me{display:flex;align-items:center;gap:8px}
+  .onb{position:fixed;inset:0;z-index:40;background:rgba(3,6,14,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;padding:16px}
+  .onb.open{display:flex}
+  .obox{background:#0e1426;border:1px solid var(--line);border-radius:22px;width:min(440px,100%);max-height:100%;overflow:auto;padding:22px;position:relative}
+  .obox.wide{width:min(900px,100%)}
+  .obox h2{font-size:23px;font-weight:800;margin-bottom:4px}
+  .obox .sub{color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.6}
+  .ofield{display:block;margin-bottom:12px;font-size:13px;color:var(--muted)}
+  .ofield input,.ofield select{display:block;width:100%;margin-top:5px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
+    background:#151d35;color:var(--text);font:inherit;font-size:16px}
+  .ophone{display:flex;gap:8px;direction:ltr}.ophone select{width:96px;flex:none}.ophone input{flex:1}
+  .ocheck{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.6;margin:10px 0;color:var(--text);cursor:pointer}
+  .ocheck input{width:20px;height:20px;flex:none;margin-top:2px;accent-color:var(--accent)}
+  .onote{font-size:12px;color:var(--muted);background:rgba(77,163,255,.08);border:1px solid rgba(77,163,255,.25);border-radius:12px;padding:9px 12px;margin:10px 0 14px;line-height:1.6}
+  .oerr{color:#ff7b7b;font-size:13px;min-height:18px;margin-bottom:8px}
+  .avgrid{display:grid;grid-template-columns:1fr 1.15fr;gap:18px}
+  #avCanvas{width:100%;aspect-ratio:3/4;border-radius:18px;background:radial-gradient(circle at 50% 35%,#2a3a66,#0a1020 75%);display:block;touch-action:none;cursor:grab}
+  .avprev{position:relative}.avprev small{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:12px;color:var(--muted)}
+  .avopts .cl{font-size:13px;color:var(--muted);margin:12px 0 6px}
+  .avopts .cl:first-child{margin-top:0}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg button{padding:8px 12px;border-radius:11px;border:1px solid var(--line);background:#151d35;color:var(--text);font:inherit;font-size:14px;cursor:pointer}
+  .seg button.on{border-color:var(--accent);background:rgba(77,163,255,.22)}
+  .sw{display:flex;flex-wrap:wrap;gap:7px}
+  .sw button{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.18);cursor:pointer}
+  .sw button.on{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+  .avopts input[type=range]{width:100%;accent-color:var(--accent)}
+  .orow{display:flex;gap:8px;margin-top:16px}.orow .cta{margin:0}
+  .cta.ghost{background:rgba(255,255,255,.08);color:var(--text);flex:0 0 auto;width:auto;padding:13px 16px}
+  .odel{display:block;margin:14px auto 0;background:none;border:0;color:#ff8b8b;font:inherit;font-size:13px;cursor:pointer;text-decoration:underline}
+  @media (max-width:760px){
+    .onb{padding:0}.obox,.obox.wide{border-radius:0;height:100%;width:100%}
+    .avgrid{grid-template-columns:1fr}#avCanvas{aspect-ratio:auto;height:38vh}
+  }
 </style>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -168,6 +205,7 @@
 </header>
 
 <div class="tools">
+  <button class="btn" id="tMe" style="display:none"></button>
   <button class="btn" id="tOverlay">عرض حالة القطع</button>
   <button class="btn on" id="tRotate">تدوير تلقائي</button>
   <button class="btn" id="tRandom">قطعة متاحة عشوائية</button>
@@ -207,6 +245,38 @@
     </div>
   </div>
 </div></div>
+<div class="onb" id="onb">
+  <div class="obox" id="onbForm">
+    <h2>أهلاً فيك 👋</h2>
+    <div class="sub">سجّل وصمّم شخصيتك عشان تمشي في الكوكب وتتسوق.</div>
+    <label class="ofield">الاسم<input id="oName" autocomplete="name" maxlength="40" placeholder="اسمك"></label>
+    <label class="ofield">رقم الهاتف
+      <div class="ophone"><select id="oCode">
+        <option value="+971">🇦🇪 +971</option><option value="+966">🇸🇦 +966</option><option value="+965">🇰🇼 +965</option>
+        <option value="+974">🇶🇦 +974</option><option value="+973">🇧🇭 +973</option><option value="+968">🇴🇲 +968</option>
+        <option value="other">أخرى</option></select>
+        <input id="oPhone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="50 123 4567"></div></label>
+    <label class="ofield">العمر<input id="oAge" type="number" inputmode="numeric" min="13" max="110" placeholder="مثلاً 25"></label>
+    <label class="ocheck" id="oGuardWrap" style="display:none"><input type="checkbox" id="oGuard">ولي أمري يعرف إني مسجّل وموافق.</label>
+    <label class="ocheck"><input type="checkbox" id="oConsent">أوافق إن اسمي ورقمي وعمري يُستخدمون داخل عالم الشراء بس، وما يُعطون لأي جهة ثانية بدون إذني.</label>
+    <div class="onote">🔒 في هذي النسخة التجريبية بياناتك تنحفظ في جهازك بس، وما تنرسل لأي مكان. وتقدر تحذفها متى ما بغيت.</div>
+    <div class="oerr" id="oErr"></div>
+    <button class="cta" id="oNext">التالي: صمّم شخصيتك ←</button>
+  </div>
+  <div class="obox wide" id="onbAv" style="display:none">
+    <h2 id="avTitle">صمّم شخصيتك</h2>
+    <div class="sub">كل شخص في الكوكب شكله غير. اللبس كله محتشم.</div>
+    <div class="avgrid">
+      <div class="avprev"><canvas id="avCanvas"></canvas><small>اسحب عشان تدوّر الشخصية</small></div>
+      <div class="avopts" id="avOpts"></div>
+    </div>
+    <div class="orow">
+      <button class="cta ghost" id="avRand">🎲 عشوائي</button>
+      <button class="cta" id="avSave">✅ احفظ وادخل الكوكب</button>
+    </div>
+    <button class="odel" id="avDel" style="display:none">🗑️ احذف حسابي وكل بياناتي</button>
+  </div>
+</div>
 <div id="labels"></div>
 
 <script type="module">
@@ -214,6 +284,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { City, STYLES, COLORS } from './city.js';
 import { PRESETS, makeLine, calcSpace, demoLines } from './catalog.js';
+import { buildAvatar, animateAvatar, randomAvatar, defaultAvatar, SKINS, HAIR, CLOTH, OUTFITS, HEADWEAR } from './avatar.js';
 
 /* ---------- random + noise ---------- */
 let seed = 20261114;
@@ -587,17 +658,134 @@ cBuild.onclick=()=>{
   openPanel(p); enterCity(p);
 };
 
+/* ---------- profile: sign-up + avatar maker ---------- */
+const PROFILE_KEY='alam-profile-v1';
+let profile=null;
+try{ profile=JSON.parse(localStorage.getItem(PROFILE_KEY)||'null'); }catch(e){}
+const onb=document.getElementById('onb'), onbForm=document.getElementById('onbForm'), onbAv=document.getElementById('onbAv');
+const $id=id=>document.getElementById(id);
+let pendingWalk=null, av=null, avView=null;
+
+function saveProfile(){ try{ localStorage.setItem(PROFILE_KEY,JSON.stringify(profile)); }catch(e){} showMe(); }
+function showMe(){ const b=$id('tMe'); if(!profile){b.style.display='none';return;}
+  b.style.display=''; b.textContent=`👤 ${profile.name}`; }
+$id('tMe').onclick=()=>openAvatar(true);
+
+function openSignup(){
+  onb.classList.add('open'); onbForm.style.display=''; onbAv.style.display='none';
+  setTimeout(()=>$id('oName').focus(),50);
+}
+$id('oAge').oninput=()=>{ const a=+$id('oAge').value; $id('oGuardWrap').style.display=a>=13&&a<18?'flex':'none'; };
+$id('oNext').onclick=()=>{
+  const err=t=>{$id('oErr').textContent=t;}, name=$id('oName').value.trim();
+  const code=$id('oCode').value; let ph=$id('oPhone').value.replace(/[^\d]/g,''); const age=Math.floor(+$id('oAge').value);
+  if(name.length<2) return err('اكتب اسمك (حرفين أو أكثر)');
+  if(code==='+971'){ ph=ph.replace(/^(00971|971|0)/,''); if(!/^5\d{8}$/.test(ph)) return err('رقم إماراتي غير صحيح. مثال: 50 123 4567'); }
+  else if(ph.length<7||ph.length>14) return err('رقم الهاتف غير صحيح');
+  if(!age) return err('اكتب عمرك');
+  if(age<13) return err('لازم يكون عمرك 13 سنة أو أكثر');
+  if(age>110) return err('العمر غير صحيح');
+  if(age<18&&!$id('oGuard').checked) return err('لأن عمرك أقل من 18، لازم موافقة ولي أمرك');
+  if(!$id('oConsent').checked) return err('لازم توافق على استخدام بياناتك عشان تكمل');
+  err('');
+  profile={name,phone:(code==='other'?'':code)+ph,age,guardian:age<18,consentAt:new Date().toISOString(),
+    avatar:randomAvatar(), createdAt:new Date().toISOString()};
+  openAvatar(false);
+};
+
+function openAvatar(edit){
+  onb.classList.add('open'); onbForm.style.display='none'; onbAv.style.display='';
+  $id('avTitle').textContent=edit?`شخصيتك يا ${profile.name}`:'صمّم شخصيتك';
+  $id('avSave').textContent=edit?'✅ احفظ':'✅ احفظ وادخل الكوكب';
+  $id('avDel').style.display=edit?'':'none'; $id('avDel').textContent='🗑️ احذف حسابي وكل بياناتي'; $id('avDel').dataset.sure='';
+  av={...profile.avatar}; renderOpts(); startAvatarView();
+}
+function closeOnb(){ onb.classList.remove('open'); stopAvatarView(); }
+
+function renderOpts(){
+  const g=av.gender, el=$id('avOpts');
+  const seg=(label,key,list)=>`<div class="cl">${label}</div><div class="seg">${list.map(o=>`<button data-k="${key}" data-v="${o.id}" class="${av[key]===o.id?'on':''}">${o.name}</button>`).join('')}</div>`;
+  const sw=(label,key,list)=>`<div class="cl">${label}</div><div class="sw">${list.map(c=>`<button data-k="${key}" data-v="${c}" style="background:${c}" class="${av[key]===c?'on':''}" aria-label="${c}"></button>`).join('')}</div>`;
+  const second={shirt:'لون البنطلون',tunic:'لون التنورة'}[av.outfit]||(av.head==='hijab'?'لون الحجاب':'');
+  el.innerHTML=
+    seg('الجنس','gender',[{id:'m',name:'رجل'},{id:'f',name:'امرأة'}])+
+    seg('اللبس','outfit',OUTFITS[g])+
+    seg('غطاء الرأس','head',HEADWEAR[g])+
+    sw('لون اللبس','color',CLOTH)+
+    (second?sw(second,'color2',CLOTH):'')+
+    sw('لون البشرة','skin',SKINS)+
+    (av.head==='none'||g==='m'?sw('لون الشعر','hair',HAIR):'')+
+    (g==='m'?seg('اللحية','beard',[{id:'none',name:'بدون'},{id:'short',name:'خفيفة'},{id:'full',name:'كاملة'}]):'')+
+    seg('نظارة','glasses',[{id:false,name:'بدون'},{id:true,name:'مع نظارة'}])+
+    `<div class="cl">الطول: <b id="avH">${Math.round(av.height*100)} سم</b></div><input type="range" id="avHeight" min="${g==='m'?150:145}" max="${g==='m'?200:190}" value="${Math.round(av.height*100)}">`+
+    `<div class="cl">الجسم</div><input type="range" id="avBuild" min="85" max="125" value="${Math.round(av.build*100)}">`;
+  el.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k; let v=b.dataset.v; if(k==='glasses') v=v==='true';
+    if(k==='gender'&&v!==av.gender){ const d=defaultAvatar(v); av={...d,skin:av.skin,glasses:av.glasses}; }
+    else av[k]=v;
+    renderOpts(); refreshAvatar();
+  });
+  $id('avHeight').oninput=e=>{ av.height=e.target.value/100; $id('avH').textContent=`${e.target.value} سم`; refreshAvatar(); };
+  $id('avBuild').oninput=e=>{ av.build=e.target.value/100; refreshAvatar(); };
+}
+$id('avRand').onclick=()=>{ av=randomAvatar(); renderOpts(); refreshAvatar(); };
+$id('avSave').onclick=()=>{
+  const first=!profile.avatarDone; profile.avatar={...av}; profile.avatarDone=true; saveProfile(); closeOnb();
+  toast(first?`أهلاً ${profile.name}! اختر قطعة في الكوكب وادخلها`:'تم حفظ شخصيتك');
+  if(pendingWalk){ const p=pendingWalk; pendingWalk=null; enterCity(p); }
+};
+$id('avDel').onclick=e=>{
+  const b=e.currentTarget;
+  if(!b.dataset.sure){ b.dataset.sure='1'; b.textContent='متأكد؟ اضغط مرة ثانية للحذف النهائي'; return; }
+  try{ localStorage.removeItem(PROFILE_KEY); }catch(_){}
+  profile=null; showMe(); closeOnb(); toast('انحذف حسابك وكل بياناته من هذا الجهاز'); setTimeout(openSignup,800);
+};
+
+// live 3D preview (its own small renderer, only while the maker is open)
+function startAvatarView(){
+  if(!avView){
+    const cv=$id('avCanvas'), r=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+    r.setPixelRatio(Math.min(devicePixelRatio,2)); r.outputColorSpace=THREE.SRGBColorSpace; r.toneMapping=THREE.ACESFilmicToneMapping;
+    r.shadowMap.enabled=true; r.shadowMap.type=THREE.PCFSoftShadowMap;
+    const s=new THREE.Scene(), cam=new THREE.PerspectiveCamera(30,.75,.1,50);
+    s.add(new THREE.HemisphereLight(0xdfeaff,0x3a3328,1.4));
+    const key=new THREE.DirectionalLight(0xfff2e0,2.4); key.position.set(2,4,3); key.castShadow=true; key.shadow.mapSize.set(1024,1024);
+    Object.assign(key.shadow.camera,{left:-1,right:1,top:2.2,bottom:-.2}); s.add(key);
+    const rim=new THREE.DirectionalLight(0x8fb8ff,1.2); rim.position.set(-2,2,-3); s.add(rim);
+    const disc=new THREE.Mesh(new THREE.CylinderGeometry(.7,.75,.06,48),new THREE.MeshStandardMaterial({color:'#1c2a4d',roughness:.6}));
+    disc.position.y=-.03; disc.receiveShadow=true; s.add(disc);
+    const holder=new THREE.Group(); s.add(holder);
+    avView={r,s,cam,holder,yaw:.5,drag:null,run:false,t:0};
+    cv.addEventListener('pointerdown',e=>{avView.drag=e.clientX;cv.setPointerCapture(e.pointerId);});
+    cv.addEventListener('pointermove',e=>{ if(avView.drag===null) return; avView.yaw+=(e.clientX-avView.drag)*.012; avView.drag=e.clientX; });
+    cv.addEventListener('pointerup',()=>{avView.drag=null;});
+  }
+  refreshAvatar(); avView.run=true;
+  const loop=()=>{ if(!avView.run) return; requestAnimationFrame(loop);
+    const v=avView, cv=v.r.domElement, w=cv.clientWidth, h=cv.clientHeight;
+    if(w&&h&&(cv.width!==Math.round(w*v.r.getPixelRatio())||cv.height!==Math.round(h*v.r.getPixelRatio()))){
+      v.r.setSize(w,h,false); v.cam.aspect=w/h; v.cam.updateProjectionMatrix(); }
+    const H=(av?.height||1.75); v.cam.position.set(0,H*.62,H*2.3/Math.min(1,v.cam.aspect*1.35)); v.cam.lookAt(0,H*.52,0);
+    if(v.drag===null) v.yaw+=.004; v.holder.rotation.y=v.yaw;
+    v.t+=.016; if(v.holder.children[0]) animateAvatar(v.holder.children[0],v.t*1.2,.0);
+    v.r.render(v.s,v.cam); };
+  loop();
+}
+function refreshAvatar(){ if(!avView) return; avView.holder.clear(); avView.holder.add(buildAvatar(av)); }
+function stopAvatarView(){ if(avView) avView.run=false; }
+
 /* ---------- walk mode (city) ---------- */
 let city=null;
 async function enterCity(p){
   if(city) return;
+  if(!profile?.avatarDone){ pendingWalk=p; profile?openAvatar(false):openSignup(); return; }
   let store=p.store||null;
   if(!store&&p.status==='rented'){
     const r=calcSpace(demoLines(p.tenant[1]));
     store={name:p.tenant[0],style:STYLES[p.id%STYLES.length].id,color:COLORS[(p.id*3)%COLORS.length],lines:demoLines(p.tenant[1]),plot:r.plotNeeded};
   }
   document.body.classList.add('in-city'); controls.enabled=false;
-  city=await City.create({renderer,seed:p.id,store,
+  city=await City.create({renderer,seed:p.id,store,avatar:profile.avatar,
     title:`${COUNTRIES[p.country]} · قطعة ${p.id+1}`,subtitle:store?store.name:'أرض بدون مبنى',
     onExit:()=>{city.dispose();city=null;window.__city=null;document.body.classList.remove('in-city');controls.enabled=true;}});
   window.__city=city; // handy for debugging in the browser console
@@ -666,7 +854,8 @@ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updat
 
 requestAnimationFrame(()=>setTimeout(()=>{
   build(); loadMine(); updateStats(); repaintAll(); animate();
-  window.__app={plots,openPanel,enterCity,openCalc}; // handy for debugging in the browser console
+  showMe(); if(!profile) openSignup(); else if(!profile.avatarDone) openAvatar(false);
+  window.__app={plots,openPanel,enterCity,openCalc,avView:()=>avView,setAv:a=>{av=a;renderOpts();refreshAvatar();}}; // handy for debugging in the browser console
   const l=document.getElementById('loader'); l.style.opacity=0; setTimeout(()=>l.remove(),600);
 },30));
 </script>

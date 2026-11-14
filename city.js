@@ -2,6 +2,7 @@
 // sized by the space calculator from the shop's real products (all units in metres).
 import * as THREE from 'three';
 import { calcSpace, GONDOLA, slotFit } from './catalog.js';
+import { buildAvatar, animateAvatar, randomAvatar } from './avatar.js';
 
 export const STYLES = [
   {id:'crystal', name:'قبة كريستال'}, {id:'twist', name:'برج ملتوي'}, {id:'mushroom', name:'فطر'},
@@ -85,7 +86,7 @@ export class City {
   }
 
   // store: {name, style, color, lines} or null for an empty plot
-  constructor({renderer,title,subtitle,seed=1,store=null,onExit}){
+  constructor({renderer,title,subtitle,seed=1,store=null,avatar=null,onExit}){
     this.r=renderer; this.onExit=onExit; this.store=store;
     let s=((seed+7)*48271)%2147483647; this.rand=()=>(s=(s*16807)%2147483647)/2147483647;
     this.colliders=[]; this.rings=[]; this.pickables=[]; this.cart=[]; this.keys={}; this.stores=[];
@@ -105,6 +106,9 @@ export class City {
 
     this.calc = store ? calcSpace(store.lines) : null;
     this.layoutDistrict();
+    // you: third-person by default so you can see your own avatar
+    this.view='third'; this.camD=3.2; this.walkPh=0; this.walkAmt=0;
+    this.me=buildAvatar(avatar||randomAvatar(this.rand)); this.me.rotation.y=Math.PI; S.add(this.me);
     this.buildHUD(title,subtitle);
     this.bindInput();
   }
@@ -305,14 +309,9 @@ export class City {
       this.cars.push({g,alongX:R()<.5,line:this.roadLines[Math.floor(R()*2)],dir:R()<.5?1:-1,s:(R()*2-1)*lim,lim,v:7+R()*5,cur:0});
       S.add(g);
     }
-    const bodyG=new THREE.CapsuleGeometry(.24,.85,4,8), headG=new THREE.SphereGeometry(.16,12,10);
-    const skin=['#e0b48f','#c58c63','#8d5a3b','#f1cfb0'].map(c=>new THREE.MeshStandardMaterial({color:c}));
     this.people=[];
-    for(let i=0;i<18;i++){
-      const g=new THREE.Group();
-      const b=new THREE.Mesh(bodyG,new THREE.MeshStandardMaterial({color:new THREE.Color().setHSL(R(),.5,.35+R()*.3)}));b.position.y=.82;
-      const h=new THREE.Mesh(headG,skin[Math.floor(R()*skin.length)]);h.position.y=1.65;g.add(b,h);
-      g.traverse(o=>{if(o.isMesh)o.castShadow=true;}); g.scale.setScalar(.92+R()*.16);
+    for(let i=0;i<16;i++){
+      const g=buildAvatar(randomAvatar(R)); g.traverse(o=>{if(o.isMesh)o.castShadow=false;});
       const line=this.roadLines[Math.floor(R()*2)], off=(R()<.5?-1:1)*(6+R()*.8);
       this.people.push({g,alongX:R()<.5,line:line+off,dir:R()<.5?1:-1,s:(R()*2-1)*lim,lim,v:1.1+R()*.5,ph:R()*6}); S.add(g);
     }
@@ -326,13 +325,15 @@ export class City {
     el.innerHTML=`<div class="top">
         <button class="pill" data-a="exit">→ رجوع للكوكب</button>
         <div class="title">${title}<small>${subtitle||''}</small></div>
-        <button class="pill" data-a="cart">🛒 <b>0</b></button></div>
+        <div style="display:flex;gap:6px"><button class="pill" data-a="view">🎥</button><button class="pill" data-a="cart">🛒 <b>0</b></button></div></div>
       <div class="dot"></div>
       <div class="hint">${touch?'إصبع يسار للمشي · إصبع يمين للنظر · اضغط على أي منتج':'W A S D أو الأسهم للمشي · Shift للركض · اسحب بالماوس للنظر · اضغط على أي منتج'}</div>
       <div class="joy"><i></i></div><div class="msg"></div><div class="card"></div>`;
     document.body.appendChild(el);
     this.$=s=>el.querySelector(s);
     el.querySelector('[data-a=exit]').onclick=()=>this.onExit&&this.onExit();
+    el.querySelector('[data-a=view]').onclick=()=>{ this.view=this.view==='third'?'first':'third';
+      this.say(this.view==='third'?'تشوف شخصيتك من ورا':'تشوف بعيونك'); };
     el.querySelector('[data-a=cart]').onclick=()=>{
       const t=this.cart.reduce((a,p)=>a+(p.price||0),0);
       this.say(this.cart.length?`في السلة ${this.cart.length} منتج · المجموع $${t.toFixed(2)}`:'السلة فاضية. ادخل المحل واختر منتج');};
@@ -357,7 +358,7 @@ export class City {
   }
 
   pick(cx,cy){
-    const ray=new THREE.Raycaster(); ray.far=10;
+    const ray=new THREE.Raycaster(); ray.far=10+(this.view==='third'?this.camD:0);
     ray.setFromCamera(new THREE.Vector2(cx/innerWidth*2-1,-(cy/innerHeight)*2+1),this.camera);
     const hit=ray.intersectObjects(this.pickables,false)[0];
     if(!hit){this.$('.card').classList.remove('open');this.sel.visible=false;return;}
@@ -428,11 +429,29 @@ export class City {
     const l=Math.hypot(mx,mz); if(l>1){mx/=l;mz/=l;}
     const run=K.ShiftLeft||K.ShiftRight||Math.hypot(this.joy.x,this.joy.y)>.95;
     const sp=(run?7:4)*dt, sy=Math.sin(this.yaw), cy=Math.cos(this.yaw);
-    this.pos.x+=(-sy*mz+cy*mx)*sp; this.pos.z+=(-cy*mz-sy*mx)*sp;
+    const wx=-sy*mz+cy*mx, wz=-cy*mz-sy*mx;
+    this.pos.x+=wx*sp; this.pos.z+=wz*sp;
     this.collide(this.pos);
     const moving=Math.hypot(mx,mz)>.05; this.bob+=moving?dt*(run?11:8):0;
-    const cam=this.camera;
-    cam.position.set(this.pos.x,1.82+(moving?Math.sin(this.bob)*.035:0),this.pos.z); cam.rotation.set(this.pitch,this.yaw,0);
+    const cam=this.camera, me=this.me, third=this.view==='third';
+    // avatar: turn toward the walking direction, swing arms/legs
+    me.position.set(this.pos.x,0,this.pos.z); me.visible=third;
+    if(moving){ const want=Math.atan2(wx,wz); let d=want-me.rotation.y; d=Math.atan2(Math.sin(d),Math.cos(d)); me.rotation.y+=d*Math.min(1,dt*10); }
+    this.walkAmt+=((moving?1:0)-this.walkAmt)*Math.min(1,dt*8); this.walkPh+=dt*(run?11:7.5)*this.walkAmt;
+    animateAvatar(me,this.walkPh,this.walkAmt);
+    if(third){
+      const pitch=clamp(this.pitch-.22,-1.2,.5); cam.rotation.set(pitch,this.yaw,0);
+      const back=new THREE.Vector3(0,0,1).applyEuler(cam.rotation), hy=me.scale.y*1.62;
+      // pull the camera in so it never ends up on the other side of a wall from you
+      let D=this.camD;
+      for(;D>.5;D-=.15){
+        const x=this.pos.x+back.x*D, z=this.pos.z+back.z*D;
+        if(!this.stores.some(s=>(Math.hypot(this.pos.x-s.cx,this.pos.z-s.cz)<s.R)!==(Math.hypot(x-s.cx,z-s.cz)<(Math.hypot(this.pos.x-s.cx,this.pos.z-s.cz)<s.R?s.R-.35:s.R+.35)))) break;
+      }
+      cam.position.set(this.pos.x+back.x*D,Math.max(.35,hy+back.y*D+.15),this.pos.z+back.z*D);
+    } else {
+      cam.position.set(this.pos.x,1.82+(moving?Math.sin(this.bob)*.035:0),this.pos.z); cam.rotation.set(this.pitch,this.yaw,0);
+    }
     this.sky.position.copy(cam.position);
     this.sun.position.set(this.pos.x+40,80,this.pos.z+25); this.sun.target.position.set(this.pos.x,0,this.pos.z);
 
@@ -450,8 +469,8 @@ export class City {
       c.g.rotation.y=c.alongX?(c.dir>0?Math.PI/2:-Math.PI/2):(c.dir>0?0:Math.PI);
     }
     for(const p of this.people){
-      p.s+=p.dir*p.v*dt; if(p.s>p.lim)p.s=-p.lim; if(p.s<-p.lim)p.s=p.lim; p.ph+=dt*7;
-      p.g.position.set(p.alongX?p.s:p.line,Math.abs(Math.sin(p.ph))*.05,p.alongX?p.line:p.s);
+      p.s+=p.dir*p.v*dt; if(p.s>p.lim)p.s=-p.lim; if(p.s<-p.lim)p.s=p.lim; p.ph+=dt*6.5;
+      p.g.position.set(p.alongX?p.s:p.line,0,p.alongX?p.line:p.s); animateAvatar(p.g,p.ph,1);
       p.g.rotation.y=p.alongX?(p.dir>0?Math.PI/2:-Math.PI/2):(p.dir>0?0:Math.PI);
     }
   }
