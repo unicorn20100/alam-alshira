@@ -57,7 +57,10 @@ export async function loadProfile(){
 
 export async function deleteMe(){
   const c = await client(); if(!c) return false;
-  if(!(await myId())) return false;
+  const id = await myId(); if(!id) return false;
+  // remove your uploaded photos / 3D files first (storage does not cascade)
+  try{ const { data } = await c.storage.from(BUCKET).list(id, { limit: 1000 });
+       if(data?.length) await c.storage.from(BUCKET).remove(data.map(f => `${id}/${f.name}`)); }catch(e){ console.warn(e); }
   const { error } = await c.rpc('delete_me'); if(error) throw error;
   await c.auth.signOut();
   return true;
@@ -88,4 +91,42 @@ export async function onPlotChange(cb){
   c.channel('plots-live')
     .on('postgres_changes', { event:'*', schema:'public', table:'plots' }, payload => cb(payload))
     .subscribe();
+}
+
+/* ---------- merchant portal ---------- */
+export const BUCKET = 'shop-media';
+const MEDIA_PREFIX = () => `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/`;
+// only accept media that lives in our own bucket (no outside links, no tracking pixels)
+export const mediaOk = u => typeof u === 'string' && configured() && u.startsWith(MEDIA_PREFIX()) && !/[\s"'<>]/.test(u);
+
+export async function getPlot(plotId){
+  const c = await client(); if(!c) return null;
+  const { data, error } = await c.from('plots').select('plot_id,owner,owner_name,store,updated_at').eq('plot_id', plotId).maybeSingle();
+  if(error){ console.warn(error); return null; }
+  return data;
+}
+
+// Upload a Blob into your own folder; returns its public link.
+export async function uploadMedia(blob, ext, contentType){
+  const c = await client(); if(!c) throw new Error('offline');
+  const id = await ensureUser();
+  const path = `${id}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const { error } = await c.storage.from(BUCKET).upload(path, blob, { contentType, upsert:false, cacheControl:'31536000' });
+  if(error) throw error;
+  return c.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+export async function requestBuild({plotId, shopName, notes, contact}){
+  const c = await client(); if(!c) throw new Error('offline');
+  await ensureUser();
+  const { error } = await c.from('build_requests').insert({ plot_id:plotId, shop_name:shopName, notes, contact });
+  if(error) throw error;
+  return true;
+}
+
+export async function myBuildRequests(plotId){
+  const c = await client(); if(!c) return [];
+  if(!(await myId())) return [];
+  const { data } = await c.from('build_requests').select('id,notes,status,created_at').eq('plot_id', plotId).order('created_at', { ascending:false });
+  return data || [];
 }

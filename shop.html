@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>محل · عالم الشراء</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#070b16;--card:#0f1628;--card2:#151e36;--line:rgba(255,255,255,.1);--text:#eef2ff;--muted:#9aa6c4;--accent:#4da3ff;--ok:#3ddc84;--bad:#ff7b7b;--c:#4da3ff}
+  *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none!important}
+  body{background:var(--bg);color:var(--text);font-family:"Tajawal",system-ui,sans-serif;min-height:100vh;padding-bottom:90px}
+  a{color:inherit}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(7,11,22,.9);backdrop-filter:blur(10px);z-index:5}
+  .top a{text-decoration:none;font-size:14px;color:var(--muted)}
+  .top b{font-size:16px}
+  .wrap{max-width:980px;margin:0 auto;padding:18px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit;font-size:14px;cursor:pointer;text-decoration:none}
+  .btn.main{background:linear-gradient(135deg,#3ddc84,#2bb3a0);color:#06140c;border:0;font-weight:800}
+  .btn.blue{background:linear-gradient(135deg,#4da3ff,#6a5cff);border:0;font-weight:700}
+  .btn:disabled{opacity:.5;cursor:default}
+  .msg{padding:40px 10px;text-align:center;color:var(--muted);line-height:1.8}
+  /* storefront */
+  .hero{border-radius:22px;padding:22px;background:linear-gradient(135deg,color-mix(in srgb,var(--c) 35%,#0f1628),#0f1628 70%);border:1px solid var(--line);display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .logo{width:92px;height:92px;border-radius:22px;object-fit:cover;background:var(--c);display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;flex:none}
+  .hero h1{font-size:28px;font-weight:800}
+  .hero p{color:#cfd7ef;margin:6px 0 10px;line-height:1.7;white-space:pre-wrap}
+  .meta{font-size:13px;color:var(--muted)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  h2{font-size:19px;margin:26px 0 12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+  .pc{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+  .pc .ph{aspect-ratio:1;background:#1a2340;display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-weight:700}
+  .pc .ph img{width:100%;height:100%;object-fit:contain;background:#fff}
+  .pc .in{padding:10px 12px}
+  .pc .nm{font-weight:700;font-size:15px}
+  .pc .pr{font-size:18px;font-weight:800;margin:4px 0;direction:ltr;text-align:right}
+  .pc .sz{font-size:12px;color:var(--muted)}
+  /* dashboard */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:14px}
+  .card h3{font-size:17px;margin-bottom:12px}
+  label.f{display:block;font-size:13px;color:var(--muted);margin-bottom:10px}
+  label.f input,label.f textarea,.pl input,.pl select,.req textarea,.req input{display:block;width:100%;margin-top:4px;padding:10px 12px;border-radius:11px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit;font-size:15px}
+  textarea{resize:vertical;min-height:70px}
+  .row2{display:grid;grid-template-columns:110px 1fr;gap:14px;align-items:start}
+  .lg{width:110px;height:110px;border-radius:20px;background:var(--card2);border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;color:var(--muted);font-size:13px;text-align:center}
+  .lg img{width:100%;height:100%;object-fit:cover}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg button{padding:8px 12px;border-radius:11px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit;font-size:14px;cursor:pointer}
+  .seg button.on{border-color:var(--accent);background:rgba(77,163,255,.22)}
+  .sw{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+  .sw button{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.18);cursor:pointer}
+  .sw button.on{border-color:#fff;box-shadow:0 0 0 2px var(--accent)}
+  .pl{display:grid;grid-template-columns:76px 1fr;gap:12px;padding:12px;border:1px solid var(--line);border-radius:14px;margin-bottom:10px;background:rgba(255,255,255,.02)}
+  .pl .th{width:76px;height:76px;border-radius:12px;overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;text-align:center;color:#fff;position:relative}
+  .pl .th img{width:100%;height:100%;object-fit:contain;background:#fff}
+  .pl .th span{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);font-size:10px;padding:2px}
+  .pl .g{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .pl .g .w2{grid-column:span 2}.pl .g .w3{grid-column:span 3}.pl .g .w6{grid-column:span 6}
+  .pl label{font-size:11px;color:var(--muted)}
+  .pl input,.pl select{padding:7px 8px;font-size:14px;margin-top:2px}
+  .pl .del{background:none;border:0;color:var(--bad);cursor:pointer;font:inherit;font-size:13px;align-self:end;padding:8px 0}
+  .sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px}
+  .sum div{background:var(--card2);border-radius:12px;padding:10px;text-align:center}
+  .sum b{display:block;font-size:18px;direction:ltr}
+  .sum span{font-size:12px;color:var(--muted)}
+  .fit{margin-top:10px;padding:10px 12px;border-radius:12px;font-size:14px}
+  .fit.ok{background:rgba(61,220,132,.12);color:var(--ok)}.fit.no{background:rgba(255,123,123,.12);color:var(--bad)}
+  .note{font-size:13px;color:var(--muted);line-height:1.7;margin:8px 0}
+  .req textarea,.req input{margin-bottom:8px}
+  .rlist div{font-size:13px;padding:8px 10px;border-radius:10px;background:var(--card2);margin-top:6px}
+  .link{display:flex;gap:8px}.link input{flex:1;direction:ltr;padding:10px 12px;border-radius:11px;border:1px solid var(--line);background:var(--card2);color:var(--text);font:inherit}
+  .bar{position:fixed;bottom:0;left:0;right:0;padding:12px 18px;background:rgba(7,11,22,.95);border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;justify-content:space-between;z-index:6}
+  .bar .st{font-size:13px;color:var(--muted)}
+  .toast{position:fixed;top:16px;left:50%;transform:translate(-50%,-200%);background:#111a33;border:1px solid var(--accent);padding:11px 16px;border-radius:14px;z-index:20;transition:transform .3s;max-width:90vw;text-align:center;font-size:14px}
+  .toast.show{transform:translate(-50%,0)}
+  @media (max-width:640px){ .row2{grid-template-columns:1fr} .pl .g{grid-template-columns:repeat(3,1fr)} .pl .g .w3,.pl .g .w6{grid-column:span 3} .hero h1{font-size:23px} }
+</style>
+</head>
+<body>
+<div class="top"><a href="./">← الكوكب</a><b id="topTitle">محل</b><span style="width:60px"></span></div>
+<div class="wrap" id="app"><div class="msg">جاري التحميل…</div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import * as BE from './backend.js?v=4';
+import { PRESETS, makeLine, presetById, calcSpace, STYLES, COLORS } from './catalog.js?v=4';
+
+const $=s=>document.querySelector(s), app=$('#app');
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const n=v=>Math.round(v).toLocaleString('en-US');
+const money=v=>'$'+(+v||0).toLocaleString('en-US',{minimumFractionDigits:v<100&&v%1?2:0,maximumFractionDigits:2});
+function toast(t){const el=$('#toast');el.textContent=t;el.classList.add('show');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),3200);}
+const params=new URLSearchParams(location.search), plotId=parseInt(params.get('p'),10);
+const shopUrl=id=>`${location.origin}${location.pathname}?p=${id}`;
+let localProfile=null; try{ localProfile=JSON.parse(localStorage.getItem('alam-profile-v1')||'null'); }catch(e){}
+
+let row=null, store=null, dirty=false;
+
+async function start(){
+  if(!(plotId>=0)) return fail('رابط المحل غير صحيح.');
+  if(!BE.configured()) return fail('السيرفر غير متصل.');
+  row=await BE.getPlot(plotId);
+  if(!row) return fail('هذي القطعة ما فيها محل للحين.<br>تقدر تحجزها وتبني عليها من الكوكب.');
+  const me=await BE.myId();
+  const owner=me&&me===row.owner;
+  if(!row.store){
+    if(owner) return fail('حجزت هذي القطعة، بس ما بنيت المحل للحين.<br>ارجع للكوكب واضغط على القطعة ثم "ابنِ محلك".');
+    return fail('هذي القطعة محجوزة، وصاحبها ما بنى محله للحين.');
+  }
+  store=structuredClone(row.store);
+  store.lines=(store.lines||[]).filter(l=>l&&Array.isArray(l.size));
+  store.building ||= {mode:'style'};
+  document.title=`${store.name} · عالم الشراء`; $('#topTitle').textContent=store.name;
+  document.documentElement.style.setProperty('--c',/^#[0-9a-f]{6}$/i.test(store.color)?store.color:'#4da3ff');
+  if(owner&&params.get('view')!=='public') dashboard(); else storefront(owner);
+}
+function fail(html){ app.innerHTML=`<div class="msg">${html}<br><br><a class="btn" href="./">← ارجع للكوكب</a></div>`; }
+
+/* ================= public storefront ================= */
+function storefront(owner){
+  const s=store, lines=s.lines.filter(l=>l.qty>0);
+  const logo=BE.mediaOk(s.logo)?`<img class="logo" src="${esc(s.logo)}" alt="">`:`<div class="logo">${esc((s.name||'?').trim()[0]||'?')}</div>`;
+  app.innerHTML=`
+    <section class="hero">${logo}
+      <div style="flex:1;min-width:220px">
+        <h1>${esc(s.name)}</h1>
+        ${s.about?`<p>${esc(s.about)}</p>`:''}
+        <div class="meta">${esc(row.owner_name||'')}${s.country?' · '+esc(s.country):''} · قطعة ${plotId+1} · ${n(lines.reduce((a,l)=>a+(+l.qty||0),0))} منتج</div>
+        <div class="acts">
+          <a class="btn blue" href="./?walk=${plotId}">🚶 ادخل المحل ثلاثي الأبعاد</a>
+          <button class="btn" id="copy">🔗 انسخ رابط المحل</button>
+          ${owner?`<a class="btn" href="?p=${plotId}">✏️ ارجع للوحة التحكم</a>`:''}
+        </div>
+      </div>
+    </section>
+    <h2>المنتجات (${lines.length})</h2>
+    <div class="grid">${lines.map(l=>{const [w,h,d]=l.size;
+      return `<div class="pc"><div class="ph" style="background:${/^#[0-9a-f]{6}$/i.test(l.color)?l.color:'#1a2340'}">${BE.mediaOk(l.img)?`<img src="${esc(l.img)}" alt="${esc(l.name)}" loading="lazy">`:esc(l.name)}</div>
+        <div class="in"><div class="nm">${esc(l.name)}</div>${l.price?`<div class="pr">${money(l.price)}</div>`:''}
+        <div class="sz">${+w} × ${+h} × ${+d} سم · متوفر ${n(l.qty)}</div></div></div>`;}).join('')||'<div class="msg">ما فيه منتجات للحين</div>'}</div>`;
+  $('#copy').onclick=()=>copy(shopUrl(plotId));
+}
+async function copy(t){ try{ await navigator.clipboard.writeText(t); toast('انسخ الرابط ✓'); }catch(e){ prompt?.('انسخ الرابط:',t); } }
+
+/* ================= owner dashboard ================= */
+function dashboard(){
+  app.innerHTML=`
+    <div class="card"><h3>🏪 بيانات المحل</h3>
+      <div class="row2">
+        <div><div class="lg" id="logoBox"></div><input type="file" id="logoFile" accept="image/*" hidden></div>
+        <div>
+          <label class="f">اسم المحل<input id="sName" maxlength="40"></label>
+          <label class="f">نبذة عن المحل (تطلع للزباين)<textarea id="sAbout" maxlength="500" placeholder="مثلاً: سوبرماركت عائلي من 1998، كل شي طازج يومياً"></textarea></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card"><h3>📦 المنتجات</h3>
+      <div class="note">صوّر المنتج من قدام على خلفية بيضا. الصورة تنحط على المنتج نفسه داخل المحل ثلاثي الأبعاد وفي صفحة محلك.</div>
+      <div id="lines"></div>
+      <button class="btn" id="addLine">+ أضف منتج</button>
+      <div class="sum" id="sum"></div><div id="fit"></div>
+    </div>
+
+    <div class="card"><h3>🏗️ المبنى</h3>
+      <div class="seg" id="bMode">
+        <button data-m="style">شكل جاهز من عندنا</button>
+        <button data-m="upload">ارفع تصميمك 3D</button>
+        <button data-m="request">نبني لك تصميم خاص</button>
+      </div>
+      <div id="bBody" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card"><h3>🔗 رابط محلك</h3>
+      <div class="note">هذا موقع محلك الخاص. تقدر تحطه في الإنستقرام أو ترسله للزباين.</div>
+      <div class="link"><input readonly id="lnk"><button class="btn" id="cp">انسخ</button><a class="btn" href="?p=${plotId}&view=public">👁️ شوفه كزبون</a></div>
+    </div>
+    <div class="bar"><span class="st" id="st">كل شي محفوظ</span><button class="btn main" id="save">💾 احفظ التغييرات</button></div>`;
+  $('#sName').value=store.name||''; $('#sAbout').value=store.about||'';
+  $('#lnk').value=shopUrl(plotId); $('#cp').onclick=()=>copy(shopUrl(plotId));
+  $('#sName').oninput=e=>{store.name=e.target.value;mark();}; $('#sAbout').oninput=e=>{store.about=e.target.value;mark();};
+  drawLogo(); $('#logoBox').onclick=()=>$('#logoFile').click();
+  $('#logoFile').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+    try{ busy('جاري رفع الشعار…'); store.logo=await uploadImage(f,512); drawLogo(); mark(); }catch(err){ upErr(err); } finally{ busy(); } };
+  drawLines(); $('#addLine').onclick=()=>{ if(store.lines.length>=60) return toast('الحد 60 نوع منتج في هذي النسخة');
+    store.lines.push(makeLine('custom',10)); drawLines(); mark(); };
+  drawBuilding();
+  $('#save').onclick=save;
+  addEventListener('beforeunload',e=>{ if(dirty){ e.preventDefault(); e.returnValue=''; } });
+}
+function mark(){ dirty=true; $('#st').textContent='فيه تغييرات ما انحفظت'; $('#st').style.color='#ffd23d'; summary(); }
+function busy(t){ const b=$('#save'); b.disabled=!!t; if(t) $('#st').textContent=t; else if(!dirty) $('#st').textContent='كل شي محفوظ'; else $('#st').textContent='فيه تغييرات ما انحفظت'; }
+function upErr(e){ console.warn(e); toast(/size|large|exceed/i.test(e?.message||'')?'الملف كبير زيادة':'ما قدرنا نرفع الملف، جرّب مرة ثانية'); }
+function drawLogo(){ const b=$('#logoBox'); b.innerHTML=BE.mediaOk(store.logo)?`<img src="${esc(store.logo)}" alt="">`:'📷<br>شعار المحل'; }
+
+function drawLines(){
+  const box=$('#lines');
+  box.innerHTML=store.lines.map((l,i)=>`
+    <div class="pl" data-i="${i}">
+      <div class="th" style="background:${/^#[0-9a-f]{6}$/i.test(l.color)?l.color:'#1a2340'}" data-a="img">${BE.mediaOk(l.img)?`<img src="${esc(l.img)}" alt="">`:esc(l.name)}<span>📷 ${BE.mediaOk(l.img)?'غيّر':'صورة'}</span></div>
+      <div class="g">
+        <label class="w3">النوع<select data-k="preset">${PRESETS.map(p=>`<option value="${p.id}" ${p.id===l.preset?'selected':''}>${p.name}</option>`).join('')}</select></label>
+        <label class="w3">اسم المنتج<input data-k="name" maxlength="40" value="${esc(l.name)}"></label>
+        <label>العرض سم<input data-k="w" type="number" min="1" max="500" value="${+l.size[0]}"></label>
+        <label>الارتفاع سم<input data-k="h" type="number" min="1" max="500" value="${+l.size[1]}"></label>
+        <label>العمق سم<input data-k="d" type="number" min="1" max="500" value="${+l.size[2]}"></label>
+        <label>السعر $<input data-k="price" type="number" min="0" step="0.01" value="${+l.price||0}"></label>
+        <label>الكمية<input data-k="qty" type="number" min="0" max="1000000" value="${+l.qty||0}"></label>
+        <button class="del" data-a="del">🗑️ حذف</button>
+      </div>
+      <input type="file" accept="image/*" hidden data-a="file">
+    </div>`).join('');
+  box.querySelectorAll('.pl').forEach(el=>{
+    const i=+el.dataset.i, l=store.lines[i];
+    el.querySelectorAll('[data-k]').forEach(inp=>inp.oninput=()=>{
+      const k=inp.dataset.k, v=inp.value;
+      if(k==='preset'){ const p=presetById(v); Object.assign(l,{preset:p.id,name:p.name,size:[...p.size],shape:p.shape,color:p.color,price:p.price}); drawLines(); }
+      else if(k==='name') l.name=v.slice(0,40);
+      else if(k==='w'||k==='h'||k==='d') l.size[{w:0,h:1,d:2}[k]]=Math.min(500,Math.max(.5,+v||1));
+      else if(k==='price') l.price=Math.max(0,+v||0);
+      else if(k==='qty') l.qty=Math.min(1e6,Math.max(0,Math.floor(+v||0)));
+      mark();
+    });
+    el.querySelector('[data-a=del]').onclick=()=>{ store.lines.splice(i,1); drawLines(); mark(); };
+    const file=el.querySelector('[data-a=file]');
+    el.querySelector('[data-a=img]').onclick=()=>file.click();
+    file.onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+      try{ busy('جاري رفع الصورة…'); l.img=await uploadImage(f,1024); drawLines(); mark(); }catch(err){ upErr(err); } finally{ busy(); } };
+  });
+  summary();
+}
+
+function summary(){
+  const sum=$('#sum'); if(!sum) return;
+  const r=calcSpace(store.lines), rate=+store.rate||0, max=+store.maxArea||0;
+  store._calc=r;
+  sum.innerHTML=`
+    <div><b>${n(r.totalQty)}</b><span>منتج</span></div>
+    <div><b>${(r.R*2).toFixed(1)} م</b><span>قطر المبنى</span></div>
+    <div><b>${n(r.plotNeeded)} م²</b><span>الأرض المطلوبة</span></div>
+    <div><b>${rate?'$'+n(r.plotNeeded*rate):'—'}</b><span>إيجارك الشهري</span></div>`;
+  const ok=r.fits&&(!max||r.plotNeeded<=max);
+  $('#fit').innerHTML=`<div class="fit ${ok?'ok':'no'}">${ok?(max?`✓ القطعة تكفي (مساحتها ${n(max)} م²)`:'✓ تمام'):(!r.fits?'المنتجات الكبيرة كثيرة زيادة على أكبر مبنى':`✗ منتجاتك تحتاج ${n(r.plotNeeded)} م² والقطعة ${n(max)} م² بس. قلّل الكميات أو اختر قطعة أكبر من الكوكب`)}</div>`;
+  return ok;
+}
+
+function drawBuilding(){
+  const m=store.building.mode||'style';
+  document.querySelectorAll('#bMode button').forEach(b=>{ b.classList.toggle('on',b.dataset.m===m); b.onclick=()=>{ store.building.mode=b.dataset.m; drawBuilding(); mark(); }; });
+  const body=$('#bBody'), dia=((store._calc?.R||calcSpace(store.lines).R)*2).toFixed(1);
+  if(m==='style'){
+    body.innerHTML=`<div class="seg" id="styles">${STYLES.map(s=>`<button data-s="${s.id}" class="${s.id===store.style?'on':''}">${s.name}</button>`).join('')}</div>
+      <div class="sw" id="cols">${COLORS.map(c=>`<button data-c="${c}" style="background:${c}" class="${c===store.color?'on':''}"></button>`).join('')}</div>`;
+    body.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{store.style=b.dataset.s;drawBuilding();mark();});
+    body.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{store.color=b.dataset.c;document.documentElement.style.setProperty('--c',store.color);drawBuilding();mark();});
+  } else if(m==='upload'){
+    const has=BE.mediaOk(store.building.glb);
+    body.innerHTML=`<div class="note">ارفع مبناك بصيغة <b>.glb</b> (من Blender: File ← Export ← glTF 2.0 ← Binary). الحد 30 ميجا.<br>
+      • خلّ <b>الباب في الواجهة الأمامية</b> للمودل.<br>• حجمه يتعدل تلقائياً على قطر محلك: <b>${dia} م</b>.<br>• الرفوف والمنتجات تنحط داخله تلقائياً.</div>
+      <button class="btn blue" id="glbBtn">${has?'✓ تم الرفع · غيّر الملف':'⬆️ اختر ملف .glb'}</button><input type="file" id="glbFile" accept=".glb,model/gltf-binary" hidden>`;
+    $('#glbBtn').onclick=()=>$('#glbFile').click();
+    $('#glbFile').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+      if(!/\.glb$/i.test(f.name)) return toast('لازم يكون الملف .glb');
+      if(f.size>30*1024*1024) return toast('الملف أكبر من 30 ميجا');
+      try{ busy('جاري رفع المبنى…'); store.building.glb=await BE.uploadMedia(f,'glb','model/gltf-binary'); drawBuilding(); mark(); toast('انرفع المبنى ✓ لا تنسى تحفظ'); }
+      catch(err){ upErr(err); } finally{ busy(); } };
+  } else {
+    const phone=localProfile?.phone||'';
+    body.innerHTML=`<div class="req">
+      <div class="note">فريقنا يصمم لك مبنى خاص بهوية محلك. هذي <b>خدمة مدفوعة</b>، ونتواصل معك بالسعر والمدة قبل ما نبدأ.</div>
+      <textarea id="rNotes" maxlength="2000" placeholder="وش الفكرة؟ مثلاً: مبنى على شكل علبة عطر ذهبية، ألوان الشعار، أمثلة تعجبك…"></textarea>
+      <input id="rContact" maxlength="60" placeholder="رقم للتواصل (واتساب)" value="${esc(phone)}">
+      <button class="btn blue" id="rSend">📨 أرسل الطلب</button>
+      <div class="rlist" id="rList"></div></div>`;
+    $('#rSend').onclick=async()=>{
+      const notes=$('#rNotes').value.trim(), contact=$('#rContact').value.trim();
+      if(notes.length<10) return toast('اكتب فكرتك بتفصيل أكثر');
+      if(contact.length<7) return toast('اكتب رقم للتواصل');
+      try{ $('#rSend').disabled=true; await BE.requestBuild({plotId,shopName:store.name,notes,contact}); $('#rNotes').value=''; toast('وصلنا طلبك ✓ بنتواصل معك'); listReq(); }
+      catch(e){ console.warn(e); toast('ما وصل الطلب، جرّب مرة ثانية'); } finally{ $('#rSend').disabled=false; }
+    };
+    listReq();
+  }
+}
+async function listReq(){
+  const L=await BE.myBuildRequests(plotId), box=$('#rList'); if(!box) return;
+  const ST={new:'جديد · بنتواصل معك',contacted:'تواصلنا معك',in_progress:'قيد التصميم',done:'خلص ✓'};
+  box.innerHTML=L.map(r=>`<div>📨 ${new Date(r.created_at).toLocaleDateString('ar-AE')} · <b>${esc(ST[r.status]||r.status)}</b><br>${esc(r.notes.slice(0,120))}</div>`).join('');
+}
+
+async function uploadImage(file,max){
+  if(!file.type.startsWith('image/')) throw new Error('not image');
+  if(file.size>20*1024*1024) throw new Error('too large');
+  const bmp=await createImageBitmap(file);
+  const k=Math.min(1,max/Math.max(bmp.width,bmp.height)), c=document.createElement('canvas');
+  c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
+  const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(bmp,0,0,c.width,c.height);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.86));
+  return BE.uploadMedia(blob,'jpg','image/jpeg');
+}
+
+async function save(){
+  const name=(store.name||'').trim();
+  if(name.length<2) return toast('اكتب اسم المحل');
+  if(!store.lines.some(l=>l.qty>0)) return toast('أضف منتج واحد على الأقل');
+  if(!summary()) return toast('منتجاتك ما تتسع في القطعة');
+  if(store.building.mode==='upload'&&!BE.mediaOk(store.building.glb)) return toast('ارفع ملف المبنى أول، أو اختر شكل جاهز');
+  const r=store._calc; const out={...store,name,plot:r.plotNeeded}; delete out._calc;
+  try{ busy('جاري الحفظ…'); await BE.savePlot(plotId,out,row.owner_name||localProfile?.name||'');
+    row.store=out; dirty=false; $('#topTitle').textContent=name; $('#st').style.color=''; toast('انحفظ ✓ الكل يشوف التحديث الحين'); }
+  catch(e){ console.warn(e); toast(e.code==='taken'?'هذي القطعة مب لك':'ما انحفظ، جرّب مرة ثانية'); }
+  finally{ busy(); }
+}
+
+start();
+</script>
+</body>
+</html>

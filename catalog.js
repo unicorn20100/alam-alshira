@@ -2,6 +2,12 @@
 // The same layout function is used by the calculator AND by the 3D store,
 // so the building the tenant gets is exactly the one the numbers describe.
 
+export const STYLES = [
+  {id:'crystal', name:'قبة كريستال'}, {id:'twist', name:'برج ملتوي'}, {id:'mushroom', name:'فطر'},
+  {id:'cubes', name:'مكعبات طائرة'}, {id:'pyramid', name:'هرم'}, {id:'spiral', name:'حلزون'},
+];
+export const COLORS = ['#e2574c','#f2a93b','#3ccf91','#4da3ff','#8e6cf0','#e05ea0','#1f8a4c','#efe9df'];
+
 // sizes are in centimetres: [width, height, depth]
 export const PRESETS = [
   {id:'can',     name:'قوطي أكل',          size:[7.5,11,7.5], shape:'cyl', color:'#c0392b', price:1.5},

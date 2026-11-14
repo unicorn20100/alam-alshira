@@ -62,3 +62,43 @@ language sql security definer set search_path = '' as $$
 $$;
 revoke all on function public.delete_me() from public, anon;
 grant execute on function public.delete_me() to authenticated;
+
+-- 5) Shop media: product photos, logos and uploaded 3D buildings (.glb).
+--    Anyone can view a file by its link; each merchant can only write inside their own folder (<user id>/...).
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('shop-media', 'shop-media', true, 31457280,
+        array['image/jpeg','image/png','image/webp','model/gltf-binary','application/octet-stream'])
+on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+drop policy if exists "media own read" on storage.objects;
+drop policy if exists "media own insert" on storage.objects;
+drop policy if exists "media own update" on storage.objects;
+drop policy if exists "media own delete" on storage.objects;
+-- listing is limited to your own folder (so "delete my account" can find and remove your files)
+create policy "media own read" on storage.objects for select to authenticated
+  using (bucket_id = 'shop-media' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "media own insert" on storage.objects for insert to authenticated
+  with check (bucket_id = 'shop-media' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "media own update" on storage.objects for update to authenticated
+  using (bucket_id = 'shop-media' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "media own delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'shop-media' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- 6) "Build it for me": merchants ask us to design their building (paid service).
+--    Merchants see only their own requests; you see all of them in the Table Editor.
+create table if not exists public.build_requests (
+  id          bigint generated always as identity primary key,
+  owner       uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  plot_id     int  not null,
+  shop_name   text check (char_length(shop_name) <= 60),
+  notes       text check (char_length(notes) <= 2000),
+  contact     text check (char_length(contact) <= 60),
+  status      text not null default 'new',
+  created_at  timestamptz not null default now()
+);
+alter table public.build_requests enable row level security;
+drop policy if exists "own requests read" on public.build_requests;
+drop policy if exists "own requests insert" on public.build_requests;
+create policy "own requests read"   on public.build_requests for select to authenticated using (owner = auth.uid());
+create policy "own requests insert" on public.build_requests for insert to authenticated
+  with check (owner = auth.uid() and status = 'new');

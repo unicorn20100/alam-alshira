@@ -282,10 +282,10 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { City, STYLES, COLORS } from './city.js';
-import { PRESETS, makeLine, calcSpace, demoLines } from './catalog.js';
-import * as BE from './backend.js';
-import { buildAvatar, animateAvatar, randomAvatar, defaultAvatar, SKINS, HAIR, CLOTH, OUTFITS, HEADWEAR } from './avatar.js';
+import { City, STYLES, COLORS } from './city.js?v=4';
+import { PRESETS, makeLine, calcSpace, demoLines } from './catalog.js?v=4';
+import * as BE from './backend.js?v=4';
+import { buildAvatar, animateAvatar, randomAvatar, defaultAvatar, SKINS, HAIR, CLOTH, OUTFITS, HEADWEAR } from './avatar.js?v=4';
 
 /* ---------- random + noise ---------- */
 let seed = 20261114;
@@ -549,9 +549,9 @@ function openPanel(p){
   if(p.status==='avail') btn=land?`<button class="cta" id="build">🏗️ احسب مساحتك وابنِ محلك</button>`
                                   :`<button class="cta" id="book">احجز هذه القطعة</button>`;
   else if(p.status==='mine') btn=!land?`<button class="cta" disabled>محجوزة لك ✓</button>`
-    :p.store?`<button class="cta" id="walk">🚶 ادخل محلك "${esc(p.store.name)}"</button><button class="cta walk" id="build">✏️ عدّل المحل</button>`
+    :p.store?`<button class="cta" id="walk">🚶 ادخل محلك "${esc(p.store.name)}"</button><a class="cta walk" style="display:block;text-align:center;text-decoration:none" href="shop.html?p=${p.id}">🛠️ لوحة تحكم محلك: منتجات، صور، مبنى</a><button class="cta walk" id="build">📐 غيّر المساحة والمنتجات بالحاسبة</button>`
     :`<button class="cta" id="build">🏗️ ابنِ محلك</button>`;
-  else if(p.status==='rented'&&land) btn=`<button class="cta walk" id="walk">🚶 ادخل محل ${esc(p.tenant[0])}</button>`;
+  else if(p.status==='rented'&&land) btn=`<button class="cta walk" id="walk">🚶 ادخل محل ${esc(p.tenant[0])}</button>`+(p.real?`<a class="cta" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="shop.html?p=${p.id}">🛍️ صفحة المحل والمنتجات</a>`:'');
   else btn=`<button class="cta" disabled>${p.status==='reserved'?'قيد الحجز':'غير متاحة حالياً'}</button>`;
   panel.innerHTML=`<button class="close" id="pclose">×</button>
     <h2>قطعة رقم ${p.id+1}${p.isCapital?' · العاصمة':''}</h2>
@@ -621,6 +621,8 @@ async function startShared(){
     if(!profile){ const remote=await BE.loadProfile(); if(remote){ profile=remote; saveProfile(); onb.classList.remove('open'); } }
     else if(profile.avatarDone&&!(await BE.myId())) await BE.saveProfile(profile);
     await syncPlots();
+    const w=parseInt(new URLSearchParams(location.search).get('walk'),10);
+    if(w>=0&&plots[w]){ history.replaceState(null,'',location.pathname); openPanel(plots[w]); if(plots[w].store||plots[w].status==='rented') enterCity(plots[w]); }
     BE.onPlotChange(({eventType,new:n,old:o})=>{ if(eventType==='DELETE') clearRow(o.plot_id); else applyRow(n); updateStats(); });
   }catch(e){ console.warn('shared world offline',e); }
 }
@@ -701,7 +703,8 @@ function drawPlan(r){ // top-down preview of the store the calculator planned
 }
 cBuild.onclick=()=>{
   const p=calcPlot, name=cName.value.trim()||'محلي';
-  p.store={name,style:cStyle,color:cColor,lines:cLines.filter(l=>l.qty>0),plot:lastCalc.plotNeeded};
+  p.store={...(p.store||{}),name,style:cStyle,color:cColor,lines:cLines.filter(l=>l.qty>0),plot:lastCalc.plotNeeded,
+    country:COUNTRIES[p.country],rate:+rate(p).toFixed(4),maxArea:p.area};
   p.status='mine'; saveMine(p); repaintPlot(p); updateStats(); calcEl.classList.remove('open');
   toast(`تم بناء "${name}" على ${lastCalc.plotNeeded.toLocaleString('en-US')} م² (نموذج تجريبي)`);
   openPanel(p); enterCity(p);

@@ -1,14 +1,21 @@
 // عالم الشراء — walkable district. Every shop is its own odd-shaped building,
 // sized by the space calculator from the shop's real products (all units in metres).
 import * as THREE from 'three';
-import { calcSpace, GONDOLA, slotFit } from './catalog.js';
-import { buildAvatar, animateAvatar, randomAvatar } from './avatar.js';
+import { calcSpace, GONDOLA, slotFit } from './catalog.js?v=4';
+import { buildAvatar, animateAvatar, randomAvatar } from './avatar.js?v=4';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mediaOk } from './backend.js?v=4';
 
-export const STYLES = [
-  {id:'crystal', name:'قبة كريستال'}, {id:'twist', name:'برج ملتوي'}, {id:'mushroom', name:'فطر'},
-  {id:'cubes', name:'مكعبات طائرة'}, {id:'pyramid', name:'هرم'}, {id:'spiral', name:'حلزون'},
-];
-export const COLORS = ['#e2574c','#f2a93b','#3ccf91','#4da3ff','#8e6cf0','#e05ea0','#1f8a4c','#efe9df'];
+// product photo on the faces that point at the shopper; plain colour + label elsewhere
+const texLoader=new THREE.TextureLoader(); texLoader.setCrossOrigin('anonymous');
+const photoCache=new Map();
+function photoTex(url){
+  if(!photoCache.has(url)){ const t=texLoader.load(url); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=4; photoCache.set(url,t); }
+  return photoCache.get(url);
+}
+
+import { STYLES, COLORS } from './catalog.js?v=4';
+export { STYLES, COLORS };
 const NEIGHBOR_NAMES = ['دار العطور','أزياء الرمال','إلكترونيات المستقبل','بيت القهوة','عالم الألعاب','ركن الكتب',
   'مجوهرات اللؤلؤ','أثاث النخلة','رياضة بلس','ساعات الزمن','حلويات السكر','بيت الورد','صيدلية الشفاء','عالم الأحذية'];
 
@@ -39,6 +46,15 @@ function productTex(name,brand,color){
   });
 }
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+// materials for one product line. front: 'x' for shelf items (face the aisle), 'z' for big items
+function productMats(ln,brand,front){
+  const label=new THREE.MeshStandardMaterial({color:'#fff',roughness:.55,map:productTex(ln.name,brand,ln.color)});
+  if(!mediaOk(ln.img)) return label;
+  const photo=new THREE.MeshStandardMaterial({color:'#fff',roughness:.45,map:photoTex(ln.img)});
+  const side=new THREE.MeshStandardMaterial({color:ln.color||'#ddd',roughness:.55});
+  if(ln.shape==='cyl') return [photo,side,side];
+  return front==='x'?[photo,photo,side,side,side,side]:[side,side,side,side,photo,photo];
+}
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let cssAdded=false;
@@ -185,6 +201,9 @@ export class City {
     const mat=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.55,...o});
     const glass=new THREE.MeshStandardMaterial({color:'#9fd3ef',metalness:.3,roughness:.1,transparent:true,opacity:.45,side:THREE.DoubleSide});
     const doorHalf=Math.min(1,2.2/R), segs={crystal:10,twist:12,mushroom:28,cubes:8,pyramid:8,spiral:28}[spec.style]||16;
+    const glb=spec.building?.mode==='upload'&&mediaOk(spec.building?.glb)?spec.building.glb:null;
+    if(glb) this.loadBuilding(glb,grp,R);
+    else {
     const wallMat=spec.style==='crystal'?glass:spec.style==='mushroom'?mat('#f3ead7',{side:THREE.DoubleSide}):mat(spec.color,{side:THREE.DoubleSide});
     add(new THREE.Mesh(new THREE.CylinderGeometry(R,R,H,segs,1,true,doorHalf,Math.PI*2-doorHalf*2),wallMat),0,H/2+.15,0,spec.style!=='crystal');
     const roofDisk=()=>add(new THREE.Mesh(new THREE.CylinderGeometry(R+.3,R+.3,.4,segs),mat(dark)),0,y0+.2,0);
@@ -216,9 +235,10 @@ export class City {
       add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),240,Math.max(.3,R*.06),8),mat(spec.color)),0,0,0);
       add(new THREE.Mesh(new THREE.SphereGeometry(R*.45,20,14),mat(spec.color,{metalness:.4,roughness:.25})),0,y0+.4+top+R*.3,0);
     }
+    }
 
     // entrance arch with the shop name
-    const over={mushroom:1.5,pyramid:1.3}[spec.style]||1, chord=2*R*Math.sin(doorHalf), az=Math.max(R*Math.cos(doorHalf)+.9,R*over+1.5), pw=Math.max(5.5,chord+1.4), pm=mat('#2b2f36');
+    const over=glb?1.15:{mushroom:1.5,pyramid:1.3}[spec.style]||1, chord=2*R*Math.sin(doorHalf), az=Math.max(R*Math.cos(doorHalf)+.9,R*over+1.5), pw=Math.max(5.5,chord+1.4), pm=mat('#2b2f36');
     for(const sx of [-1,1]) add(new THREE.Mesh(new THREE.BoxGeometry(.35,6.6,.35),pm),sx*pw/2,3.3,az);
     const sg=add(new THREE.Mesh(new THREE.PlaneGeometry(pw+.4,(pw+.4)/4),new THREE.MeshBasicMaterial({map:signTex(spec.name,dark.getStyle(),interior?'ادخل وتسوّق':'')})),0,6.6+(pw+.4)/8,az,false);
     sg.userData.shop=spec.name; this.pickables.push(sg);
@@ -258,7 +278,7 @@ export class City {
     const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), SC=new THREE.Vector3(), P=new THREE.Vector3();
     const boxG=new THREE.BoxGeometry(1,1,1), cylG=new THREE.CylinderGeometry(.5,.5,1,10);
     lines.forEach((ln,i)=>{ if(!places[i].length) return;
-      const im=new THREE.InstancedMesh(ln.shape==='cyl'?cylG:boxG,mat('#fff',{map:productTex(ln.name,spec.name,ln.color)}),places[i].length);
+      const im=new THREE.InstancedMesh(ln.shape==='cyl'?cylG:boxG,productMats(ln,spec.name,'x'),places[i].length);
       places[i].forEach(([x,y,z],n)=>{SC.set(ln.s[2],ln.s[1],ln.s[0]);M.compose(P.set(x,y,z),Q,SC);im.setMatrixAt(n,M);});
       im.userData.line=ln; im.userData.store=spec.name; im.receiveShadow=true; grp.add(im); this.pickables.push(im);
     });
@@ -267,7 +287,7 @@ export class City {
     const plinthG=new THREE.BoxGeometry(1,1,1), plinthM=mat('#2d3440');
     for(const [ln,list] of byLine){
       const [w,h,d]=ln.s;
-      const im=new THREE.InstancedMesh(boxG,mat('#fff',{map:productTex(ln.name,spec.name,ln.color)}),list.length);
+      const im=new THREE.InstancedMesh(boxG,productMats(ln,spec.name,'z'),list.length);
       const pm2=new THREE.InstancedMesh(plinthG,plinthM,list.length);
       list.forEach((sl,n)=>{const x=Math.sin(sl.a)*sl.r, z=Math.cos(sl.a)*sl.r; Q.setFromAxisAngle(new THREE.Vector3(0,1,0),sl.a);
         M.compose(P.set(x,.25+h/2,z),Q,SC.set(w,h,d)); im.setMatrixAt(n,M);
@@ -277,6 +297,19 @@ export class City {
       im.castShadow=true; im.userData.line=ln; im.userData.store=spec.name; grp.add(im,pm2); this.pickables.push(im);
     }
     this.shownCount=shown+plan.slots.length;
+  }
+
+  // merchant's own 3D building (.glb): fitted to the shop's diameter, door side facing the street (+z)
+  loadBuilding(url,grp,R){
+    new GLTFLoader().load(url,gl=>{
+      if(this.disposed) return;
+      const m=gl.scene, box=new THREE.Box3().setFromObject(m), size=box.getSize(new THREE.Vector3());
+      const k=(2*R*1.12)/Math.max(size.x,size.z,.01); m.scale.setScalar(k);
+      box.setFromObject(m); const c=box.getCenter(new THREE.Vector3());
+      m.position.set(-c.x,.15-box.min.y,-c.z);
+      m.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.receiveShadow=true; } });
+      grp.add(m);
+    },undefined,e=>{ console.warn('building model failed',e); this.say('ما قدرنا نحمّل تصميم المبنى'); });
   }
 
   buildTrees(){
@@ -479,6 +512,7 @@ export class City {
   resize(){ const a=innerWidth/innerHeight; this.camera.aspect=a; this.camera.fov=a<1?82:70; this.camera.updateProjectionMatrix(); }
 
   dispose(){
+    this.disposed=true;
     const cv=this.r.domElement;
     removeEventListener('keydown',this._kd); removeEventListener('keyup',this._ku);
     cv.removeEventListener('pointerdown',this._down); cv.removeEventListener('pointermove',this._move);
