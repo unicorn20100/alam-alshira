@@ -39,6 +39,7 @@ function productTex(name,brand,color){
   });
 }
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 let cssAdded=false;
 function addCSS(){
@@ -324,7 +325,7 @@ export class City {
     const el=this.hud=document.createElement('div'); el.className='city-hud';
     el.innerHTML=`<div class="top">
         <button class="pill" data-a="exit">→ رجوع للكوكب</button>
-        <div class="title">${title}<small>${subtitle||''}</small></div>
+        <div class="title">${esc(title)}<small>${esc(subtitle)}</small></div>
         <div style="display:flex;gap:6px"><button class="pill" data-a="view">🎥</button><button class="pill" data-a="cart">🛒 <b>0</b></button></div></div>
       <div class="dot"></div>
       <div class="hint">${touch?'إصبع يسار للمشي · إصبع يمين للنظر · اضغط على أي منتج':'W A S D أو الأسهم للمشي · Shift للركض · اسحب بالماوس للنظر · اضغط على أي منتج'}</div>
@@ -346,7 +347,7 @@ export class City {
 
   showProduct(ln,store){
     const [w,h,d]=ln.size, card=this.$('.card');
-    card.innerHTML=`<button class="x">×</button><h3>${ln.name}</h3><div class="store">${store}</div>
+    card.innerHTML=`<button class="x">×</button><h3>${esc(ln.name)}</h3><div class="store">${esc(store)}</div>
       ${ln.price?`<div class="price">$${(+ln.price).toLocaleString('en-US',{minimumFractionDigits:ln.price<100?2:0})}</div>`:''}
       <div class="row"><span>العرض</span><b>${w} سم</b></div><div class="row"><span>الارتفاع</span><b>${h} سم</b></div>
       <div class="row"><span>العمق</span><b>${d} سم</b></div><div class="row"><span>الكمية في المحل</span><b>${(+ln.qty).toLocaleString('en-US')}</b></div>

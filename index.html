@@ -284,6 +284,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { City, STYLES, COLORS } from './city.js';
 import { PRESETS, makeLine, calcSpace, demoLines } from './catalog.js';
+import * as BE from './backend.js';
 import { buildAvatar, animateAvatar, randomAvatar, defaultAvatar, SKINS, HAIR, CLOTH, OUTFITS, HEADWEAR } from './avatar.js';
 
 /* ---------- random + noise ---------- */
@@ -455,6 +456,7 @@ function build(){
     else if(r>.95){p.status='reserved';}
     else p.status='avail';
     p.months=1+Math.floor(rand()*18);
+    p.base={status:p.status,tenant:p.tenant};
   }
   window._capitals=capitals;
 
@@ -536,8 +538,9 @@ function openPanel(p){
   flyTo(p.dir);
   const [sLabel,sCol]=STATUS[p.status];
   const tenant=p.status==='rented'
-    ?`<div class="row"><span>المستأجر</span><b>${p.tenant[0]}</b></div><div class="row"><span>النشاط</span><b>${p.tenant[1]}</b></div>
-      <div class="row"><span>مدة العقد حتى الآن</span><b>${p.months} شهر</b></div>`:'';
+    ?`<div class="row"><span>المحل</span><b>${esc(p.tenant[0])}</b></div>`+(p.real
+      ?`<div class="row"><span>صاحب المحل</span><b>${esc(p.ownerName||'—')}</b></div>`
+      :`<div class="row"><span>النشاط</span><b>${esc(p.tenant[1])}</b></div><div class="row"><span>مدة العقد حتى الآن</span><b>${p.months} شهر</b></div>`):'';
   const note=p.type==='water'?'قطعة في الماء، مناسبة لمحل هادئ بعيد عن الزحمة. يُبنى عليها جزيرة أو منصة عائمة بتصميم خاص.'
     :p.central>.5?'قريبة من العاصمة ومركز الزحمة، وعليها أعلى عدد زوار، فسعرها أعلى.'
     :'منطقة هادئة بسعر أقل. تناسب المتاجر الكبيرة اللي تحتاج مساحة واسعة.';
@@ -546,9 +549,9 @@ function openPanel(p){
   if(p.status==='avail') btn=land?`<button class="cta" id="build">🏗️ احسب مساحتك وابنِ محلك</button>`
                                   :`<button class="cta" id="book">احجز هذه القطعة</button>`;
   else if(p.status==='mine') btn=!land?`<button class="cta" disabled>محجوزة لك ✓</button>`
-    :p.store?`<button class="cta" id="walk">🚶 ادخل محلك "${p.store.name}"</button><button class="cta walk" id="build">✏️ عدّل المحل</button>`
+    :p.store?`<button class="cta" id="walk">🚶 ادخل محلك "${esc(p.store.name)}"</button><button class="cta walk" id="build">✏️ عدّل المحل</button>`
     :`<button class="cta" id="build">🏗️ ابنِ محلك</button>`;
-  else if(p.status==='rented'&&land) btn=`<button class="cta walk" id="walk">🚶 ادخل محل ${p.tenant[0]}</button>`;
+  else if(p.status==='rented'&&land) btn=`<button class="cta walk" id="walk">🚶 ادخل محل ${esc(p.tenant[0])}</button>`;
   else btn=`<button class="cta" disabled>${p.status==='reserved'?'قيد الحجز':'غير متاحة حالياً'}</button>`;
   panel.innerHTML=`<button class="close" id="pclose">×</button>
     <h2>قطعة رقم ${p.id+1}${p.isCapital?' · العاصمة':''}</h2>
@@ -566,18 +569,64 @@ function openPanel(p){
   panel.classList.add('open'); setViewShift();
   pclose.onclick=closePanel;
   const wk=document.getElementById('walk'); if(wk) wk.onclick=()=>enterCity(p);
-  const bd=document.getElementById('build'); if(bd) bd.onclick=()=>openCalc(p);
+  const bd=document.getElementById('build'); if(bd) bd.onclick=()=>needProfile(()=>openCalc(p));
   const b=document.getElementById('book');
-  if(b) b.onclick=()=>{p.status='mine';saveMine();repaintPlot(p);updateStats();openPanel(p);
-    toast('تم حجز القطعة رقم '+(p.id+1)+' (نموذج تجريبي، بدون دفع حقيقي)');};
+  if(b) b.onclick=()=>needProfile(()=>{p.status='mine';saveMine(p);repaintPlot(p);updateStats();openPanel(p);
+    toast('تم حجز القطعة رقم '+(p.id+1)+' (نموذج تجريبي، بدون دفع حقيقي)');});
 }
 const rate=p=>p.rent/p.area;   // $ per m² per month
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- saved plots (this browser only) ---------- */
 const SAVE_KEY='alam-alshira-v1';
-function saveMine(){
+function saveMine(changed){
   const out={}; for(const p of plots) if(p.status==='mine') out[p.id]=p.store||null;
   try{ localStorage.setItem(SAVE_KEY,JSON.stringify(out)); }catch(e){}
+  if(changed) pushPlot(changed);
+}
+async function pushPlot(p){
+  if(!BE.configured()||!profile?.avatarDone) return;
+  try{ await BE.savePlot(p.id,p.store||null,profile.name); }
+  catch(e){
+    if(e.code==='taken'){ toast(`القطعة ${p.id+1} أخذها أحد قبلك 😕`); await syncPlots(); }
+    else { console.warn(e); toast('ما قدرنا نحفظ في السيرفر. انحفظ في جهازك، وبنحاول مرة ثانية'); }
+  }
+}
+/* ---------- shared world: everyone sees everyone's shops ---------- */
+let me_id=null;
+function applyRow(r){
+  const p=plots[r.plot_id]; if(!p) return;
+  p.real=false; p.ownerName=null;
+  if(r.owner===me_id){ p.status='mine'; p.store=r.store||null; }
+  else if(r.store){ p.status='rented'; p.real=true; p.store=r.store; p.ownerName=r.owner_name; p.tenant=[r.store.name||'محل','محل حقيقي']; }
+  else { p.status='reserved'; p.store=null; }
+  repaintPlot(p);
+}
+function clearRow(id){ const p=plots[id]; if(!p) return; p.status=p.base.status; p.tenant=p.base.tenant; p.store=null; p.real=false; repaintPlot(p); }
+async function syncPlots(){
+  const rows=await BE.loadPlots(); if(!rows) return;
+  me_id=await BE.myId();
+  const taken=new Set(rows.map(r=>r.plot_id));
+  // plots marked mine on this device but owned by someone else on the server go back to normal
+  for(const p of plots) if(p.status==='mine'&&taken.has(p.id)&&rows.find(r=>r.plot_id===p.id).owner!==me_id) clearRow(p.id);
+  rows.forEach(applyRow);
+  // upload shops built on this device before the server existed
+  if(profile?.avatarDone) for(const p of plots) if(p.status==='mine'&&!taken.has(p.id)) pushPlot(p);
+  saveMine(); updateStats();
+  if(selected>=0) openPanel(plots[selected]);
+}
+async function startShared(){
+  if(!BE.configured()) return;
+  try{
+    if(!profile){ const remote=await BE.loadProfile(); if(remote){ profile=remote; saveProfile(); onb.classList.remove('open'); } }
+    else if(profile.avatarDone&&!(await BE.myId())) await BE.saveProfile(profile);
+    await syncPlots();
+    BE.onPlotChange(({eventType,new:n,old:o})=>{ if(eventType==='DELETE') clearRow(o.plot_id); else applyRow(n); updateStats(); });
+  }catch(e){ console.warn('shared world offline',e); }
+}
+function needProfile(fn){
+  if(profile?.avatarDone) return fn();
+  toast('سجّل أول عشان تقدر تحجز وتبني'); profile?openAvatar(false):openSignup();
 }
 function loadMine(){
   let data={}; try{ data=JSON.parse(localStorage.getItem(SAVE_KEY)||'{}'); }catch(e){}
@@ -653,7 +702,7 @@ function drawPlan(r){ // top-down preview of the store the calculator planned
 cBuild.onclick=()=>{
   const p=calcPlot, name=cName.value.trim()||'محلي';
   p.store={name,style:cStyle,color:cColor,lines:cLines.filter(l=>l.qty>0),plot:lastCalc.plotNeeded};
-  p.status='mine'; saveMine(); repaintPlot(p); updateStats(); calcEl.classList.remove('open');
+  p.status='mine'; saveMine(p); repaintPlot(p); updateStats(); calcEl.classList.remove('open');
   toast(`تم بناء "${name}" على ${lastCalc.plotNeeded.toLocaleString('en-US')} م² (نموذج تجريبي)`);
   openPanel(p); enterCity(p);
 };
@@ -731,14 +780,17 @@ function renderOpts(){
 $id('avRand').onclick=()=>{ av=randomAvatar(); renderOpts(); refreshAvatar(); };
 $id('avSave').onclick=()=>{
   const first=!profile.avatarDone; profile.avatar={...av}; profile.avatarDone=true; saveProfile(); closeOnb();
+  if(BE.configured()) BE.saveProfile(profile).then(()=>first&&syncPlots()).catch(e=>{console.warn(e);toast('ما قدرنا نحفظ حسابك في السيرفر، انحفظ في جهازك بس');});
   toast(first?`أهلاً ${profile.name}! اختر قطعة في الكوكب وادخلها`:'تم حفظ شخصيتك');
   if(pendingWalk){ const p=pendingWalk; pendingWalk=null; enterCity(p); }
 };
 $id('avDel').onclick=e=>{
   const b=e.currentTarget;
   if(!b.dataset.sure){ b.dataset.sure='1'; b.textContent='متأكد؟ اضغط مرة ثانية للحذف النهائي'; return; }
-  try{ localStorage.removeItem(PROFILE_KEY); }catch(_){}
-  profile=null; showMe(); closeOnb(); toast('انحذف حسابك وكل بياناته من هذا الجهاز'); setTimeout(openSignup,800);
+  b.disabled=true; b.textContent='جاري الحذف…';
+  BE.deleteMe().catch(err=>console.warn(err)).finally(()=>{
+    try{ localStorage.removeItem(PROFILE_KEY); localStorage.removeItem(SAVE_KEY); }catch(_){}
+    toast('انحذف حسابك وكل بياناتك ومحلاتك'); setTimeout(()=>location.reload(),1200); });
 };
 
 // live 3D preview (its own small renderer, only while the maker is open)
@@ -855,6 +907,7 @@ addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updat
 requestAnimationFrame(()=>setTimeout(()=>{
   build(); loadMine(); updateStats(); repaintAll(); animate();
   showMe(); if(!profile) openSignup(); else if(!profile.avatarDone) openAvatar(false);
+  startShared();
   window.__app={plots,openPanel,enterCity,openCalc,avView:()=>avView,setAv:a=>{av=a;renderOpts();refreshAvatar();}}; // handy for debugging in the browser console
   const l=document.getElementById('loader'); l.style.opacity=0; setTimeout(()=>l.remove(),600);
 },30));

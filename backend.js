@@ -1,0 +1,91 @@
+// عالم الشراء — shared backend (Supabase). If it is not configured or cannot be
+// reached, every function fails softly and the app keeps working on this device only.
+
+// The publishable key is meant to be public: what each user may read or write is
+// enforced by the row-level-security rules in schema.sql, not by hiding this key.
+export const SUPABASE_URL = 'https://jfchuxvyfzywbraniibq.supabase.co';
+export const SUPABASE_KEY = 'sb_publishable_RAaT-jRKfQw_J_7z6P1MeA_A1a2EJLS';
+
+let sb = null, loading = null;
+export const configured = () => !!(SUPABASE_URL && SUPABASE_KEY);
+
+async function client(){
+  if(sb) return sb;
+  if(!configured()) return null;
+  loading ||= import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
+    .then(m => (sb = m.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:true, autoRefreshToken:true}})))
+    .catch(e => { console.warn('backend unavailable', e); loading = null; return null; });
+  return loading;
+}
+
+export async function myId(){
+  const c = await client(); if(!c) return null;
+  const { data } = await c.auth.getSession();
+  return data.session?.user?.id || null;
+}
+
+// Creates a private anonymous account the first time someone signs up on this device.
+async function ensureUser(){
+  const c = await client(); if(!c) throw new Error('offline');
+  const id = await myId(); if(id) return id;
+  const { data, error } = await c.auth.signInAnonymously();
+  if(error) throw error;
+  return data.user.id;
+}
+
+export async function saveProfile(p){
+  const c = await client(); if(!c) return false;
+  const id = await ensureUser();
+  const a = await c.from('profiles').upsert({ id, phone:p.phone, age:p.age, guardian:!!p.guardian, consent_at:p.consentAt });
+  if(a.error) throw a.error;
+  const b = await c.from('avatars').upsert({ id, name:p.name, avatar:p.avatar, updated_at:new Date().toISOString() });
+  if(b.error) throw b.error;
+  return true;
+}
+
+export async function loadProfile(){
+  const c = await client(); if(!c) return null;
+  const id = await myId(); if(!id) return null;
+  const [a, b] = await Promise.all([
+    c.from('profiles').select('*').eq('id', id).maybeSingle(),
+    c.from('avatars').select('*').eq('id', id).maybeSingle(),
+  ]);
+  if(a.error || b.error || !a.data || !b.data) return null;
+  return { name:b.data.name, phone:a.data.phone, age:a.data.age, guardian:a.data.guardian, consentAt:a.data.consent_at,
+           avatar:b.data.avatar, avatarDone:true, createdAt:a.data.created_at };
+}
+
+export async function deleteMe(){
+  const c = await client(); if(!c) return false;
+  if(!(await myId())) return false;
+  const { error } = await c.rpc('delete_me'); if(error) throw error;
+  await c.auth.signOut();
+  return true;
+}
+
+export async function loadPlots(){
+  const c = await client(); if(!c) return null;
+  const { data, error } = await c.from('plots').select('plot_id,owner,owner_name,store,updated_at');
+  if(error){ console.warn(error); return null; }
+  return data;
+}
+
+// Claim a plot or update your shop on it. Fails with code 'taken' if someone else owns it.
+export async function savePlot(plotId, store, ownerName){
+  const c = await client(); if(!c) return false;
+  const owner = await ensureUser();
+  const row = { plot_id:plotId, owner, owner_name:ownerName, store:store||null, updated_at:new Date().toISOString() };
+  const { error } = await c.from('plots').upsert(row);
+  if(error){
+    if(error.code === '23505' || error.code === '42501' || /row-level security/i.test(error.message)) { const e = new Error('taken'); e.code = 'taken'; throw e; }
+    throw error;
+  }
+  return true;
+}
+
+export async function onPlotChange(cb){
+  const c = await client(); if(!c) return;
+  c.channel('plots-live')
+    .on('postgres_changes', { event:'*', schema:'public', table:'plots' }, payload => cb(payload))
+    .subscribe();
+}
