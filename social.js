@@ -6,8 +6,8 @@
 // • Private call: both agree; while it lasts each of you sends your voice only to the other.
 // • Under-18s: they see people and nearby text, but voice and private chat are off.
 import * as THREE from 'three';
-import { buildAvatar, animateAvatar } from './avatar.js?v=5';
-import { client, reportUser } from './backend.js?v=5';
+import { buildAvatar, animateAvatar } from './avatar.js?v=6';
+import { client, reportUser } from './backend.js?v=6';
 
 const ICE = [{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}];
 const NEAR_TEXT = 20, VOICE_ON = 18, VOICE_OFF = 26, MAX_PEERS = 8, HEAR = 24;

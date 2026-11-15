@@ -1,7 +1,7 @@
 // عالم الشراء — modest avatars. Every outfit covers from the neck to the ankles and wrists.
 // A built avatar faces +z, stands on y=0 and is about `height` metres tall.
 import * as THREE from 'three';
-import { toonMat } from './toon.js?v=5';
+import { toonMat } from './toon.js?v=6';
 
 export const SKINS = ['#f3d4b8','#e6b996','#d29d74','#b97f57','#8f5d3c','#5e3a26'];
 export const HAIR  = ['#1b1512','#3b2618','#6b4527','#a0743f','#8a8a8a'];

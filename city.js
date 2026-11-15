@@ -1,11 +1,11 @@
 // عالم الشراء — walkable district. Every shop is its own odd-shaped building,
 // sized by the space calculator from the shop's real products (all units in metres).
 import * as THREE from 'three';
-import { calcSpace, GONDOLA, slotFit } from './catalog.js?v=5';
-import { buildAvatar, animateAvatar, randomAvatar } from './avatar.js?v=5';
+import { calcSpace, GONDOLA, slotFit } from './catalog.js?v=6';
+import { buildAvatar, animateAvatar, randomAvatar } from './avatar.js?v=6';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { mediaOk } from './backend.js?v=5';
-import { toonify, makeOutline, cloudTexture, grassTexture } from './toon.js?v=5';
+import { mediaOk } from './backend.js?v=6';
+import { toonify, makeOutline, cloudTexture, grassTexture } from './toon.js?v=6';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // product photo on the faces that point at the shopper; plain colour + label elsewhere
@@ -16,7 +16,7 @@ function photoTex(url){
   return photoCache.get(url);
 }
 
-import { STYLES, COLORS } from './catalog.js?v=5';
+import { STYLES, COLORS } from './catalog.js?v=6';
 export { STYLES, COLORS };
 const NEIGHBOR_NAMES = ['دار العطور','أزياء الرمال','إلكترونيات المستقبل','بيت القهوة','عالم الألعاب','ركن الكتب',
   'مجوهرات اللؤلؤ','أثاث النخلة','رياضة بلس','ساعات الزمن','حلويات السكر','بيت الورد','صيدلية الشفاء','عالم الأحذية'];
