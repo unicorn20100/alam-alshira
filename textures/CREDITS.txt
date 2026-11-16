@@ -1,0 +1,5 @@
+All textures and the sky (sky.hdr) are from Poly Haven (https://polyhaven.com), licensed CC0 (public domain).
+stone   = beige_wall_001        paving  = large_square_pattern_01
+marble  = marble_01             asphalt = asphalt_02
+sand    = aerial_sand           wood    = wood_floor
+sky.hdr = kloofendal_43d_clear_puresky (2k)

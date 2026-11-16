@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>عالم الشراء · الشارع الواقعي (تجربة)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#cfd8de;font-family:"Tajawal",system-ui,sans-serif;color:#fff;
+    -webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;-webkit-user-select:none}
+  canvas{display:block}
+  .top{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;gap:8px;z-index:5;pointer-events:none}
+  .pill{pointer-events:auto;background:rgba(18,22,30,.62);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:14px;padding:9px 14px;
+    font:inherit;font-size:14px;font-weight:700;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);cursor:pointer;text-decoration:none}
+  .title{background:rgba(18,22,30,.5);border-radius:14px;padding:7px 14px;font-size:14px;font-weight:700;text-align:center;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .title small{display:block;font-weight:500;font-size:11px;opacity:.8}
+  .hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.45);padding:7px 14px;border-radius:18px;
+    font-size:13px;white-space:nowrap;transition:opacity .8s;z-index:5;pointer-events:none}
+  .joy{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid rgba(255,255,255,.4);
+    background:rgba(255,255,255,.1);display:none;z-index:5;pointer-events:none}
+  .joy i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(255,255,255,.6)}
+  #loader{position:fixed;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;background:#1b2230;z-index:20;
+    font-size:16px;transition:opacity .6s}
+  #loader .bar{width:220px;height:6px;border-radius:3px;background:rgba(255,255,255,.15);overflow:hidden}
+  #loader .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#d8b26a,#f1dca8);transition:width .2s}
+  .credit{position:fixed;bottom:4px;right:8px;font-size:10px;opacity:.6;z-index:5;direction:ltr}
+  @media (max-width:760px){.title{font-size:12px}.pill{font-size:12px;padding:8px 10px}.hint{font-size:11px}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+"three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="loader"><div>جاري بناء الشارع…</div><div class="bar"><i id="prog"></i></div></div>
+<div class="top">
+  <a class="pill" href="index.html">→ الكوكب</a>
+  <div class="title">شارع تجريبي · شكل واقعي<small>المباني والشوارع واقعية، والناس أنمي</small></div>
+  <button class="pill" id="q">الجودة: عالية</button>
+</div>
+<div class="hint" id="hint">امشِ بالأسهم أو WASD (Shift للركض) · اسحب الشاشة لتلف الكاميرا</div>
+<div class="joy" id="joy"><i></i></div>
+<div class="credit">Textures &amp; sky: Poly Haven (CC0)</div>
+<script type="module">
+import * as THREE from 'three';
+import { Street, manager } from './street.js?v=6';
+
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+const mobile=matchMedia('(pointer:coarse)').matches;
+let hi=!mobile;
+const setQ=()=>{ renderer.setPixelRatio(Math.min(devicePixelRatio,hi?2:1.25)); renderer.shadowMap.enabled=true;
+  document.getElementById('q').textContent='الجودة: '+(hi?'عالية':'خفيفة'); onResize(); };
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.prepend(renderer.domElement);
+
+const prog=document.getElementById('prog');
+manager.onProgress=(u,l,t)=>{ prog.style.width=Math.round(l/t*100)+'%'; };
+try{ await document.fonts.load('800 40px "Tajawal"'); }catch(e){}
+const st=new Street(renderer);
+function onResize(){ renderer.setSize(innerWidth,innerHeight); st?.resize(innerWidth,innerHeight); }
+setQ();
+addEventListener('resize',onResize);
+document.getElementById('q').onclick=()=>{ hi=!hi; setQ(); };
+try{ await st.loadSky(); }catch(e){ console.warn('sky',e); st.scene.background=new THREE.Color('#bcd3e6'); }
+await new Promise(r=>{ if(manager.itemsLoaded>=manager.itemsTotal) r(); else manager.onLoad=r; setTimeout(r,15000); });
+const ld=document.getElementById('loader'); ld.style.opacity=0; setTimeout(()=>ld.remove(),700);
+setTimeout(()=>document.getElementById('hint').style.opacity=0,9000);
+
+/* ---- input ---- */
+addEventListener('keydown',e=>{ st.keys[e.code]=true; });
+addEventListener('keyup',e=>{ st.keys[e.code]=false; });
+addEventListener('blur',()=>{ st.keys={}; });
+const joy=document.getElementById('joy'), knob=joy.firstElementChild;
+let joyId=null, lookId=null, jx=0, jy=0, lx=0, ly=0;
+const cv=renderer.domElement;
+cv.addEventListener('pointerdown',e=>{
+  cv.setPointerCapture(e.pointerId);
+  if(e.pointerType==='touch'&&e.clientX<innerWidth/2&&joyId===null){ joyId=e.pointerId; jx=e.clientX; jy=e.clientY;
+    joy.style.display='block'; joy.style.left=jx+'px'; joy.style.top=jy+'px'; }
+  else if(lookId===null){ lookId=e.pointerId; lx=e.clientX; ly=e.clientY; }
+});
+cv.addEventListener('pointermove',e=>{
+  if(e.pointerId===joyId){ let dx=e.clientX-jx, dy=e.clientY-jy; const d=Math.hypot(dx,dy), m=45; if(d>m){dx*=m/d;dy*=m/d;}
+    knob.style.transform=`translate(${dx}px,${dy}px)`; st.joy.x=dx/m; st.joy.y=dy/m; }
+  else if(e.pointerId===lookId){ st.yaw-=(e.clientX-lx)*.005; st.pitch=Math.min(1.1,Math.max(-.05,st.pitch+(e.clientY-ly)*.004)); lx=e.clientX; ly=e.clientY; }
+});
+const up=e=>{ if(e.pointerId===joyId){ joyId=null; st.joy.x=st.joy.y=0; joy.style.display='none'; knob.style.transform=''; }
+  if(e.pointerId===lookId) lookId=null; };
+cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',e=>{ st.dist=Math.min(14,Math.max(3,st.dist*(1+e.deltaY*.001))); e.preventDefault(); },{passive:false});
+
+/* ---- loop ---- */
+const clock=new THREE.Clock();
+renderer.setAnimationLoop(()=>{ const dt=Math.min(clock.getDelta(),.05); st.update(dt); st.render(); });
+window._street=st;
+</script>
+</body>
+</html>
