@@ -6,6 +6,21 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildAvatar, animateAvatar, randomAvatar, defaultAvatar } from './avatar.js?v=6';
 import { makeOutline } from './toon.js?v=6';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { Pass } from 'three/addons/postprocessing/Pass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { Water } from 'three/addons/objects/Water.js';
+
+// the scene (with the anime ink outline on people) rendered into the composer's buffer
+class OutlineScenePass extends Pass {
+  constructor(outline,scene,camera){ super(); this.o=outline; this.scene=scene; this.camera=camera; this.needsSwap=false; }
+  render(renderer,writeBuffer,readBuffer){ renderer.setRenderTarget(this.renderToScreen?null:readBuffer); this.o.render(this.scene,this.camera); }
+}
+// ambient occlusion (soft contact shadow in corners and under things); skips glass, water and cut-out leaves/screens
+class StreetAO extends GTAOPass {
+  overrideVisibility(){ super.overrideVisibility(); this.scene.traverse(o=>{ if(o.userData.noAO) o.visible=false; }); }
+}
 
 const PI=Math.PI, TAU=PI*2;
 let seed=7; const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -31,10 +46,29 @@ const clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const manager=new THREE.LoadingManager();
 const tl=new THREE.TextureLoader(manager);
 let maxAniso=8;
-function texSet(name,tile){
+// cut large-format stone panels into the texture: dark joints in colour, grooves in the normal map, slight tone per panel
+function addJoints(tx,kind,tile,[pw,ph]){
+  const img=tx.image, c=document.createElement('canvas'); c.width=img.width; c.height=img.height; const x=c.getContext('2d'); x.drawImage(img,0,0);
+  const W=c.width, H=c.height, cols=Math.round(tile/pw), rows=Math.round(tile/ph), cw=W/cols, rh=H/rows, lw=Math.max(2,W/300);
+  let sd=11; const r=()=>(sd=(sd*16807)%2147483647)/2147483647;
+  const vlines=[];
+  for(let j=0;j<rows;j++){ const off=(j%2)*cw/2; for(let i=0;i<=cols;i++) vlines.push([off+i*cw,j*rh]); }
+  if(kind==='map'){
+    for(let j=0;j<rows;j++){ const off=(j%2)*cw/2; for(let i=-1;i<cols;i++){ const v=r(); x.fillStyle=v<.5?`rgba(255,250,240,${(.5-v)*.16})`:`rgba(120,95,60,${(v-.5)*.14})`;
+      x.fillRect(off+i*cw,j*rh,cw,rh); } }
+    x.fillStyle='rgba(95,78,55,.7)';
+    for(let j=0;j<=rows;j++) x.fillRect(0,j*rh-lw/2,W,lw);
+    for(const [vx,vy] of vlines) x.fillRect(vx-lw/2,vy,lw,rh);
+  }else{
+    for(let j=0;j<=rows;j++){ x.fillStyle='rgb(128,70,225)'; x.fillRect(0,j*rh-lw/2,W,lw/2); x.fillStyle='rgb(128,190,225)'; x.fillRect(0,j*rh,W,lw/2); }
+    for(const [vx,vy] of vlines){ x.fillStyle='rgb(190,128,225)'; x.fillRect(vx-lw/2,vy,lw/2,rh); x.fillStyle='rgb(70,128,225)'; x.fillRect(vx,vy,lw/2,rh); }
+  }
+  tx.image=c; tx.needsUpdate=true;
+}
+function texSet(name,tile,joints){
   const s={};
   for(const [k,f] of [['map','diff'],['normalMap','nor'],['roughnessMap','rough']]){
-    const t=tl.load(`textures/${name}_${f}.jpg`);
+    const t=tl.load(`textures/${name}_${f}.jpg`,joints&&k!=='roughnessMap'?(tx=>addJoints(tx,k,tile,joints)):undefined);
     t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1/tile,1/tile); t.anisotropy=maxAniso;
     if(k==='map') t.colorSpace=THREE.SRGBColorSpace;
     s[k]=t;
@@ -60,7 +94,7 @@ const FONT='"Tajawal", system-ui, sans-serif';
 /* ---------------- materials ---------------- */
 let M={};
 function makeMaterials(){
-  const stone=texSet('stone',3), pav=texSet('paving',2.4), asph=texSet('asphalt',5), marble=texSet('marble',2.5),
+  const stone=texSet('stone',3,[1.5,.75]), pav=texSet('paving',2.4), asph=texSet('asphalt',5), marble=texSet('marble',2.5),
         wood=texSet('wood',2.2), sand=texSet('sand',6);
   const std=(o)=>new THREE.MeshStandardMaterial(o);
   M.travertine=std({...stone,color:'#efe0c2',roughness:1});
@@ -77,8 +111,8 @@ function makeMaterials(){
   M.bronze=std({color:'#8a5a34',metalness:1,roughness:.32});
   M.gold=std({color:'#c49a52',metalness:1,roughness:.28});
   M.darkMetal=std({color:'#2a2c30',metalness:.9,roughness:.4});
-  M.glass=new THREE.MeshPhysicalMaterial({color:'#b7c9cf',metalness:0,roughness:.02,transparent:true,opacity:.2,
-    envMapIntensity:1.6,depthWrite:false,side:THREE.DoubleSide,reflectivity:.9});
+  M.glass=new THREE.MeshPhysicalMaterial({color:'#9fb3b8',metalness:0,roughness:.02,transparent:true,opacity:.12,
+    envMapIntensity:.55,depthWrite:false,side:THREE.DoubleSide,reflectivity:.9});
   M.tint=std({color:'#29363c',metalness:.6,roughness:.08,envMapIntensity:1.4});         // tinted tower glass
   M.concrete=std({...pav,color:'#cfc9bf',roughness:1});
   M.white=std({color:'#f4f2ee',roughness:.6});
@@ -380,13 +414,26 @@ function makeCar(paint,suv){
     wg.add(t,r); g.add(wg); wheels.push(wg);
   }
   if(suv){ shellG.scale.set(1.02,1.16,1.08); for(const w of wheels){ w.scale.setScalar(1.12); w.position.y=.4; w.position.z*=1.08; } shellG.position.y=.05; }
+  // mirrors, black sills, door shut lines, chrome belt line, handles and blank number plates
+  const plastic=M.plastic||(M.plastic=new THREE.MeshStandardMaterial({color:'#17181a',roughness:.65}));
+  const chrome=M.chrome||(M.chrome=new THREE.MeshStandardMaterial({color:'#d9dde0',metalness:1,roughness:.12}));
+  const plate=M.plate||(M.plate=new THREE.MeshStandardMaterial({color:'#f3f3ee',roughness:.4}));
+  for(const sd of [-1,1]){ const z=sd*.93;
+    const mr=box(.22,.12,.14,pm,.62,1.02,sd*1.0,{uv:false}); shellG.add(mr);
+    shellG.add(box(1.85,.13,.03,plastic,0,.42,z,{cast:false,uv:false}));
+    shellG.add(box(2.7,.02,.025,chrome,-.5,.985,z,{cast:false,uv:false}));
+    for(const lx of [-.42,.72]) shellG.add(box(.012,.52,.02,plastic,lx,.7,z,{cast:false,uv:false}));
+    for(const hx of [-.62,.5]) shellG.add(box(.16,.03,.03,chrome,hx,.86,z+sd*.01,{cast:false,uv:false}));
+  }
+  shellG.add(box(.02,.13,.52,plate,2.49,.44,0,{cast:false,uv:false}), box(.02,.13,.52,plate,-2.45,.6,0,{cast:false,uv:false}));
+  shellG.add(box(.1,.16,1.7,plastic,2.36,.36,0,{cast:false,uv:false}), box(.1,.16,1.7,plastic,-2.3,.38,0,{cast:false,uv:false}));
   g.userData.wheels=wheels; return g;
 }
 
 /* ---------------- the street ---------------- */
 export class Street {
-  constructor(renderer){
-    this.r=renderer; maxAniso=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  constructor(renderer,{hi=true}={}){
+    this.r=renderer; this.hi=hi; maxAniso=Math.min(8,renderer.capabilities.getMaxAnisotropy());
     const S=this.scene=new THREE.Scene();
     this.camera=new THREE.PerspectiveCamera(55,1,.1,1400); this.camera.rotation.order='YXZ';
     makeMaterials();
@@ -396,8 +443,8 @@ export class Street {
     // sun: shadows follow the player
     this.sun=new THREE.DirectionalLight('#fff0d8',4.6); this.sun.castShadow=true;
     const mobile=matchMedia('(pointer:coarse)').matches; this.mobile=mobile;
-    this.sun.shadow.mapSize.set(mobile?1024:2048,mobile?1024:2048);
-    const sc=this.sun.shadow.camera; sc.left=-40; sc.right=40; sc.top=40; sc.bottom=-40; sc.near=1; sc.far=220;
+    const sz=hi?4096:1024, ext=hi?34:30; this.sun.shadow.mapSize.set(sz,sz);
+    const sc=this.sun.shadow.camera; sc.left=-ext; sc.right=ext; sc.top=ext; sc.bottom=-ext; sc.near=1; sc.far=220;
     this.sun.shadow.bias=-.0004; this.sun.shadow.normalBias=.03;
     S.add(this.sun,this.sun.target);
     this.sunDir=new THREE.Vector3(.72,.62,.42).normalize();
@@ -407,8 +454,14 @@ export class Street {
     // only the people get an ink outline
     // sky light is a soft fill; the sun does the modelling (shadows). Metal and glass keep full reflections.
     S.traverse(o=>{ if(!o.isMesh) return; for(const m of [].concat(o.material)){ if(m.isMeshToonMaterial) continue;
-      m.userData.outlineParameters={visible:false}; if(m.userData.env===undefined){ m.userData.env=1; m.envMapIntensity=(m.transparent||m.metalness>.5)?1.1:.45; } } });
+      m.userData.outlineParameters={visible:false}; if(m.userData.env===undefined){ m.userData.env=1; m.envMapIntensity=m===M.glass?.55:(m.transparent||m.metalness>.5)?1.1:.45; }
+      if(m.transparent||m.alphaTest>0||m.isShaderMaterial) o.userData.noAO=true; } });
     this.outline=makeOutline(renderer);
+    if(hi){ const size=renderer.getDrawingBufferSize(new THREE.Vector2());
+      this.composer=new EffectComposer(renderer,new THREE.WebGLRenderTarget(size.x,size.y,{type:THREE.HalfFloatType,samples:4}));
+      this.composer.addPass(new OutlineScenePass(this.outline,S,this.camera));
+      this.ao=new StreetAO(S,this.camera,size.x,size.y); this.ao.updateGtaoMaterial({radius:1.0,distanceExponent:1.5,thickness:1.4,scale:1.1,samples:16});
+      this.ao.blendIntensity=.85; this.composer.addPass(this.ao); this.composer.addPass(new OutputPass()); }
   }
   async loadSky(){
     const hdr=await new RGBELoader(manager).loadAsync('textures/sky.hdr');
@@ -447,7 +500,12 @@ export class Street {
   }
   buildCanal(){
     const S=this.scene, L=2*XMAX+120;
-    const water=plane(L,CANAL1-CANAL0,M.water,0,WATER,(CANAL0+CANAL1)/2); water.receiveShadow=true; S.add(water); this.water=water;
+    if(this.hi){   // real mirror reflections of the street, the palms and the sky, with sun glints
+      const w=new Water(new THREE.PlaneGeometry(L,CANAL1-CANAL0),{textureWidth:1024,textureHeight:1024,waterNormals:M.water.normalMap,
+        sunDirection:this.sunDir.clone(),sunColor:0xfff0d8,waterColor:0x0a3439,distortionScale:1.6,fog:true});
+      w.rotation.x=-PI/2; w.position.set(0,WATER,(CANAL0+CANAL1)/2); w.material.uniforms.size.value=3.2; w.receiveShadow=true;
+      S.add(w); this.mirror=w;
+    }else{ const water=plane(L,CANAL1-CANAL0,M.water,0,WATER,(CANAL0+CANAL1)/2); water.receiveShadow=true; S.add(water); }
     for(const z of [CANAL0,CANAL1]){ const s=z===CANAL0?1:-1;
       S.add(box(L,1.4,.6,M.travertine,0,WATER+.55,z+s*.3));
       S.add(box(L,.14,.75,M.travertine,0,CURB+.07,z-s*.37,{cast:false}));                         // coping stone
@@ -496,7 +554,28 @@ export class Street {
       S.add(lampPost(x+5.5,ROAD1+.6)); this.colliders.push({x:x+5.5,z:ROAD1+.6,r:.3});
       S.add(lampPost(x,ROAD0-.6)); this.colliders.push({x,z:ROAD0-.6,r:.3});
     }
-    for(let x=-XMAX+9.5;x<XMAX;x+=22){ S.add(bench(x,4.4)); this.colliders.push({x,z:4.4,r:1.3}); }
+    for(let x=-XMAX+9.5;x<XMAX;x+=22){ S.add(bench(x,4.4)); this.colliders.push({x,z:4.4,r:1.3});
+      const bin=new THREE.Mesh(new THREE.CylinderGeometry(.26,.24,.85,16),M.bronze); bin.position.set(x+1.9,CURB+.43,4.5); bin.castShadow=true; S.add(bin);
+      const lid=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.05,16),M.darkMetal); lid.position.set(x+1.9,CURB+.88,4.5); S.add(lid);
+      this.colliders.push({x:x+1.9,z:4.5,r:.4}); }
+    // steel bollards along the shop-side kerb
+    const bol=new THREE.CylinderGeometry(.09,.1,.8,14); bol.translate(0,.4,0);
+    const steel=new THREE.MeshStandardMaterial({color:'#b9bec2',metalness:1,roughness:.3});
+    const bx=[]; for(let x=-XMAX+2;x<=XMAX;x+=3.2) if(Math.abs(x)>2.4&&Math.abs(((x+XMAX)%11)-5.5)>1) bx.push(x);
+    const bols=new THREE.InstancedMesh(bol,steel,bx.length), o=new THREE.Object3D();
+    bx.forEach((x,i)=>{ o.position.set(x,CURB,ROAD0-.35); o.updateMatrix(); bols.setMatrixAt(i,o.matrix); }); bols.castShadow=bols.receiveShadow=true; S.add(bols);
+    // generic pedestrian signals at the crossing
+    for(const [x,z,ry] of [[-2.4,ROAD0-.5,0],[2.4,ROAD1+.5,PI]]){
+      const g=new THREE.Group(); g.position.set(x,CURB,z); g.rotation.y=ry;
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,3,10),M.darkMetal); pole.position.y=1.5; pole.castShadow=true;
+      const head=box(.32,.7,.26,M.darkMetal,0,2.75,.18,{uv:false});
+      const red=new THREE.Mesh(new THREE.CircleGeometry(.09,16),new THREE.MeshStandardMaterial({color:'#300',emissive:'#ff2a1a',emissiveIntensity:1.2}));
+      red.position.set(0,2.9,.315); const grn=new THREE.Mesh(new THREE.CircleGeometry(.09,16),new THREE.MeshStandardMaterial({color:'#032',emissive:'#1aff8a',emissiveIntensity:.15}));
+      grn.position.set(0,2.6,.315); g.add(pole,head,red,grn); S.add(g); this.colliders.push({x,z,r:.3});
+    }
+    // drain covers on the road
+    const dc=new THREE.CircleGeometry(.35,20); dc.rotateX(-PI/2);
+    for(let x=-XMAX+8;x<XMAX;x+=19){ const d=new THREE.Mesh(dc,M.darkMetal); d.position.set(x,.008,ROAD0+1.2+((x|0)%2?5.6:0)); d.receiveShadow=true; S.add(d); }
   }
   buildCars(){
     for(let i=0;i<10;i++){
@@ -518,7 +597,8 @@ export class Street {
     }
   }
 
-  resize(w,h){ this.camera.aspect=w/h; this.camera.updateProjectionMatrix(); }
+  resize(w,h){ this.camera.aspect=w/h; this.camera.updateProjectionMatrix();
+    if(this.composer){ this.composer.setPixelRatio(this.r.getPixelRatio()); this.composer.setSize(w,h); } }
   blocked(x,z){
     if(groundY(x,z)===null) return true;
     for(const c of this.colliders){ const dx=x-c.x, dz=z-c.z; if(dx*dx+dz*dz<c.r*c.r) return true; }
@@ -565,7 +645,8 @@ export class Street {
       a.rotation.y=u.dir>0?PI/2:-PI/2; animateAvatar(a,u.ph,1); }
     // ---- water ripples ----
     const n=M.water.normalMap; n.offset.x=this.t*.012; n.offset.y=this.t*.007;
+    if(this.mirror) this.mirror.material.uniforms.time.value=this.t*.35;
   }
-  render(){ this.outline.render(this.scene,this.camera); }
+  render(){ if(this.composer) this.composer.render(); else this.outline.render(this.scene,this.camera); }
 }
 export { manager };

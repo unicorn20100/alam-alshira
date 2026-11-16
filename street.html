@@ -49,10 +49,10 @@ import { Street, manager } from './street.js?v=6';
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 const mobile=matchMedia('(pointer:coarse)').matches;
-let hi=!mobile;
+let hi; try{ hi=(localStorage.getItem('street-q')||(mobile?'low':'hi'))==='hi'; }catch(e){ hi=!mobile; }
 const setQ=()=>{ renderer.setPixelRatio(Math.min(devicePixelRatio,hi?2:1.25)); renderer.shadowMap.enabled=true;
   document.getElementById('q').textContent='الجودة: '+(hi?'عالية':'خفيفة'); onResize(); };
-renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.toneMapping=THREE.AgXToneMapping; renderer.toneMappingExposure=1.15;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.prepend(renderer.domElement);
@@ -60,11 +60,11 @@ document.body.prepend(renderer.domElement);
 const prog=document.getElementById('prog');
 manager.onProgress=(u,l,t)=>{ prog.style.width=Math.round(l/t*100)+'%'; };
 try{ await document.fonts.load('800 40px "Tajawal"'); }catch(e){}
-const st=new Street(renderer);
+const st=new Street(renderer,{hi});
 function onResize(){ renderer.setSize(innerWidth,innerHeight); st?.resize(innerWidth,innerHeight); }
 setQ();
 addEventListener('resize',onResize);
-document.getElementById('q').onclick=()=>{ hi=!hi; setQ(); };
+document.getElementById('q').onclick=()=>{ try{ localStorage.setItem('street-q',hi?'low':'hi'); }catch(e){} location.reload(); };
 try{ await st.loadSky(); }catch(e){ console.warn('sky',e); st.scene.background=new THREE.Color('#bcd3e6'); }
 await new Promise(r=>{ if(manager.itemsLoaded>=manager.itemsTotal) r(); else manager.onLoad=r; setTimeout(r,15000); });
 const ld=document.getElementById('loader'); ld.style.opacity=0; setTimeout(()=>ld.remove(),700);
