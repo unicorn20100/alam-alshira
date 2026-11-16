@@ -3,3 +3,5 @@ stone   = beige_wall_001        paving  = large_square_pattern_01
 marble  = marble_01             asphalt = asphalt_02
 sand    = aerial_sand           wood    = wood_floor
 sky.hdr = kloofendal_43d_clear_puresky (2k)
+sky_afternoon.hdr = lonely_road_afternoon_puresky (2k)
+../models/plants.glb = shrub_01-04, potted_plant_02, searsia_lucida, namaqualand_boulder_02 (reduced for the web)

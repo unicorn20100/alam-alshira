@@ -57,7 +57,7 @@
 <div class="credit">Textures &amp; sky: Poly Haven (CC0)</div>
 <script type="module">
 import * as THREE from 'three';
-import { Street, manager } from './street.js?v=8';
+import { Street, manager } from './street.js?v=9';
 import * as BE from './backend.js?v=6';
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
@@ -65,13 +65,15 @@ const mobile=matchMedia('(pointer:coarse)').matches;
 let hi; try{ hi=(localStorage.getItem('street-q')||(mobile?'low':'hi'))==='hi'; }catch(e){ hi=!mobile; }
 const setQ=()=>{ renderer.setPixelRatio(Math.min(devicePixelRatio,hi?2:1.25)); renderer.shadowMap.enabled=true;
   document.getElementById('q').textContent='الجودة: '+(hi?'عالية':'خفيفة'); onResize(); };
-renderer.toneMapping=THREE.AgXToneMapping; renderer.toneMappingExposure=1.15;
+renderer.toneMapping=THREE.AgXToneMapping; renderer.toneMappingExposure=.98;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.prepend(renderer.domElement);
 
 const prog=document.getElementById('prog');
+let texDone=false, onTexDone=null;
 manager.onProgress=(u,l,t)=>{ prog.style.width=Math.round(l/t*100)+'%'; };
+manager.onLoad=()=>{ texDone=true; onTexDone?.(); };
 try{ await document.fonts.load('800 40px "Tajawal"'); }catch(e){}
 // real shops from the planet: yours first, then the most recently updated (the server answers in a few seconds or we go on without it)
 let stores=[];
@@ -88,7 +90,8 @@ setQ();
 addEventListener('resize',onResize);
 document.getElementById('q').onclick=()=>{ try{ localStorage.setItem('street-q',hi?'low':'hi'); }catch(e){} location.reload(); };
 try{ await st.loadSky(); }catch(e){ console.warn('sky',e); st.scene.background=new THREE.Color('#bcd3e6'); }
-await new Promise(r=>{ if(manager.itemsLoaded>=manager.itemsTotal) r(); else manager.onLoad=r; setTimeout(r,15000); });
+try{ await st.loadPlants(); }catch(e){ console.warn('plants',e); }
+await new Promise(r=>{ if(texDone) r(); else onTexDone=r; setTimeout(r,15000); });
 const ld=document.getElementById('loader'); ld.style.opacity=0; setTimeout(()=>ld.remove(),700);
 setTimeout(()=>document.getElementById('hint').style.opacity=0,9000);
 

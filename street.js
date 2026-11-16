@@ -28,7 +28,7 @@ let seed=7; const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
 const R=(a,b)=>a+(b-a)*rnd();
 
 /* ---------------- layout (z bands) ---------------- */
-const FACADE=-12, ROAD0=-7, ROAD1=1, CANAL0=6, CANAL1=16, SOUTH1=24.5, XMAX=78;
+const FACADE=-22, ROAD0=-7, ROAD1=1, CANAL0=6, CANAL1=16, SOUTH1=24.5, XMAX=78;
 const CURB=.15, WATER=-1.05, BRIDGE_HALF=2.1;
 const LANES=[{z:-5,dir:1},{z:-1,dir:-1}];
 
@@ -93,40 +93,89 @@ function canvasTex(w,h,draw,srgb=true){
 const FONT='"Tajawal", system-ui, sans-serif';
 
 /* ---------------- materials ---------------- */
+/* ---------------- procedural travertine: warm banded stone with pores, cut into large panels ---------------- */
+function travertine({tile=2.4,pw=1.2,ph=.6,base=[232,218,192],sv=3}={}){
+  const N=1024; let sd=sv*977+13; const r=()=>(sd=(sd*16807)%2147483647)/2147483647;
+  const mk=()=>{ const c=document.createElement('canvas'); c.width=c.height=N; return c; };
+  const col=mk(), nor=mk(), x=col.getContext('2d'), y=nor.getContext('2d');
+  x.fillStyle=`rgb(${base})`; x.fillRect(0,0,N,N); y.fillStyle='rgb(128,128,255)'; y.fillRect(0,0,N,N);
+  const cols=Math.round(tile/pw), rows=Math.round(tile/ph), cw=N/cols, rh=N/rows;
+  for(let j=0;j<rows;j++){ const off=(j%2)*cw/2; for(let i=-1;i<cols;i++){
+    const x0=off+i*cw, y0=j*rh, t=r()-.5;
+    x.save(); x.beginPath(); x.rect(x0,y0,cw,rh); x.clip();
+    x.fillStyle=`rgba(${t>0?'255,247,232':'170,135,95'},${Math.abs(t)*.24})`; x.fillRect(x0,y0,cw,rh);
+    const nb=10+Math.floor(r()*12);
+    for(let b=0;b<nb;b++){ const yy=y0+r()*rh, dark=r()<.6; x.strokeStyle=dark?`rgba(165,130,88,${.07+r()*.16})`:`rgba(255,251,242,${.12+r()*.22})`;
+      x.lineWidth=1+r()*7; x.beginPath(); x.moveTo(x0-8,yy); for(let s=0;s<=10;s++) x.lineTo(x0+s*cw/10,yy+Math.sin(s*1.1+b)*r()*3); x.stroke(); }
+    for(let p=0;p<55;p++){ const px=x0+r()*cw, py=y0+r()*rh, l=2+r()*12, hh=1+r()*2.2;
+      x.fillStyle=`rgba(125,98,66,${.22+r()*.3})`; x.fillRect(px,py,l,hh);
+      y.fillStyle='rgb(128,96,235)'; y.fillRect(px,py,l,1); y.fillStyle='rgb(128,165,235)'; y.fillRect(px,py+hh,l,1); }
+    x.restore(); } }
+  const lw=Math.max(2,N/420);
+  x.fillStyle='rgba(130,108,80,.5)';
+  for(let j=0;j<=rows;j++) x.fillRect(0,j*rh-lw/2,N,lw);
+  for(let j=0;j<rows;j++){ const off=(j%2)*cw/2; for(let i=0;i<=cols;i++) x.fillRect(off+i*cw-lw/2,j*rh,lw,rh); }
+  for(let j=0;j<=rows;j++){ y.fillStyle='rgb(128,72,225)'; y.fillRect(0,j*rh-lw/2,N,lw/2); y.fillStyle='rgb(128,186,225)'; y.fillRect(0,j*rh,N,lw/2); }
+  for(let j=0;j<rows;j++){ const off=(j%2)*cw/2; for(let i=0;i<=cols;i++){ const vx=off+i*cw; y.fillStyle='rgb(186,128,225)'; y.fillRect(vx-lw/2,j*rh,lw/2,rh); y.fillStyle='rgb(72,128,225)'; y.fillRect(vx,j*rh,lw/2,rh); } }
+  const tex=(c,srgb)=>{ const t=new THREE.CanvasTexture(c); if(srgb) t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1/tile,1/tile); t.anisotropy=maxAniso; return t; };
+  return {map:tex(col,true),normalMap:tex(nor,false)};
+}
+function screenArtTex(){
+  return canvasTex(512,288,(x,w,h)=>{ const g=x.createLinearGradient(0,0,w,h); g.addColorStop(0,'#14204a'); g.addColorStop(.5,'#3b4fb0'); g.addColorStop(1,'#1a1030'); x.fillStyle=g; x.fillRect(0,0,w,h);
+    for(let k=0;k<5;k++){ x.strokeStyle=`rgba(${150+k*20},${170+k*12},255,${.25+k*.08})`; x.lineWidth=6-k; x.beginPath();
+      for(let i=0;i<=w;i+=8) x.lineTo(i,h*.55+Math.sin(i/70+k*.7)*40*(1-k*.12)+k*8); x.stroke(); } });
+}
 let M={};
 function makeMaterials(){
-  const stone=texSet('stone',3,[1.5,.75]), pav=texSet('paving',2.4), asph=texSet('asphalt',5), marble=texSet('marble',2.5),
-        wood=texSet('wood',2.2), sand=texSet('sand',6);
+  const marble=texSet('marble',2.5), wood=texSet('wood',2.2), sand=texSet('sand',6), asph=texSet('asphalt',5);
+  const trav=travertine({base:[226,208,178]}), pave=travertine({tile:2.4,pw:1.2,ph:.8,base:[238,228,208],sv:7});
   const std=(o)=>new THREE.MeshStandardMaterial(o);
-  M.travertine=std({...stone,color:'#efe0c2',roughness:1});
-  M.limestone=std({...stone,color:'#f6efe2',roughness:1});
-  M.sandstone=std({...stone,color:'#d9bf93',roughness:1});
-  M.paving=std({...pav,color:'#efe6d6',roughness:1});
-  M.asphalt=std({...asph,color:'#9a9a9a',roughness:1});
+  M.travertine=std({...trav,color:'#ffffff',roughness:.82});
+  M.limestone=std({...trav,color:'#fff9f0',roughness:.8});
+  M.sandstone=std({...trav,color:'#f2dfc4',roughness:.88});
+  M.paving=std({...pave,color:'#ffffff',roughness:.5});
+  M.asphalt=std({...asph,color:'#8c8c8c',roughness:1});
   M.sand=std({...sand,color:'#f0d9b0',roughness:1});
-  M.marbleIn=std({...marble,color:'#fff',emissive:'#fff6e8',emissiveMap:marble.map,emissiveIntensity:.22,roughness:1});
-  M.woodIn=std({...wood,color:'#fff',emissive:'#ffe9cc',emissiveMap:wood.map,emissiveIntensity:.22,roughness:1});
-  M.woodOut=std({...wood,color:'#e8d2b0',roughness:1});
-  M.wallIn=std({...stone,color:'#e6d9c2',emissive:'#ffefd6',emissiveMap:stone.map,emissiveIntensity:.18,roughness:1});
-  M.ceilIn=std({color:'#fff',emissive:'#fff',emissiveIntensity:1,emissiveMap:ceilingTex(),map:ceilingTex(),emissiveIntensity:.7});
-  M.bronze=std({color:'#8a5a34',metalness:1,roughness:.32});
-  M.gold=std({color:'#c49a52',metalness:1,roughness:.28});
+  M.mulch=std({...sand,color:'#7a5c40',roughness:1});
+  M.dunes=std({...sand,color:'#e6c896',roughness:1});
+  M.marbleIn=std({...marble,color:'#fff',emissive:'#ffefd8',emissiveMap:marble.map,emissiveIntensity:.3,roughness:.6});
+  M.woodIn=std({...wood,color:'#fff',emissive:'#ffdcb0',emissiveMap:wood.map,emissiveIntensity:.32,roughness:.8});
+  M.woodOut=std({...wood,color:'#e8c9a0',roughness:.8});
+  M.soffit=std({...wood,color:'#d39a62',roughness:.7});
+  M.wallIn=std({...trav,color:'#f6e8d0',emissive:'#ffd8a6',emissiveMap:trav.map,emissiveIntensity:.42,roughness:.9});
+  M.wallGlow=std({...trav,color:'#e8cfa8',emissive:'#ffc078',emissiveMap:trav.map,emissiveIntensity:.35,roughness:.9});
+  M.ceilIn=std({color:'#fff',map:ceilingTex(),emissive:'#ffe2b8',emissiveMap:ceilingTex(),emissiveIntensity:.9});
+  M.bronze=std({color:'#9c6a3a',metalness:1,roughness:.3});
+  M.bronzePot=std({color:'#a8763e',metalness:.9,roughness:.36});
+  M.gold=std({color:'#caa062',metalness:1,roughness:.25});
   M.darkMetal=std({color:'#2a2c30',metalness:.9,roughness:.4});
-  M.glass=new THREE.MeshPhysicalMaterial({color:'#9fb3b8',metalness:0,roughness:.02,transparent:true,opacity:.12,
-    envMapIntensity:.55,depthWrite:false,side:THREE.DoubleSide,reflectivity:.9});
-  M.tint=std({color:'#29363c',metalness:.6,roughness:.08,envMapIntensity:1.4});         // tinted tower glass
-  M.concrete=std({...pav,color:'#cfc9bf',roughness:1});
+  M.glow=std({color:'#ffe6bf',emissive:'#ffc77a',emissiveIntensity:2.4});
+  M.glowShelf=std({color:'#fff1d8',emissive:'#ffd59a',emissiveIntensity:1.4});
+  M.amber=std({color:'#c98a2e',emissive:'#b86d16',emissiveIntensity:1.1,roughness:.2});
+  M.glass=new THREE.MeshPhysicalMaterial({color:'#b9c4c0',metalness:0,roughness:.02,transparent:true,opacity:.1,
+    envMapIntensity:.5,depthWrite:false,side:THREE.DoubleSide,reflectivity:.9});
+  M.tint=std({color:'#3a4a50',metalness:.6,roughness:.08,envMapIntensity:1.4});
+  M.concrete=std({...pave,color:'#e6dccb',roughness:.8});
   M.white=std({color:'#f4f2ee',roughness:.6});
   M.paint=std({color:'#f6f6f2',roughness:.55});
   M.rubber=std({color:'#141414',roughness:.92});
-  M.lamp=std({color:'#fff3d6',emissive:'#ffe6b0',emissiveIntensity:1.4});
+  M.lamp=M.glow;
   M.screen=std({color:'#0b0d12',metalness:.3,roughness:.15,emissive:'#3a5a8a',emissiveIntensity:.5});
-  M.soft=std({color:'#d8cbb8',emissive:'#d8cbb8',emissiveIntensity:.25,roughness:1});
+  M.screenArt=std({map:screenArtTex(),emissive:'#ffffff',emissiveMap:null,emissiveIntensity:1});
+  M.screenArt.emissiveMap=M.screenArt.map;
+  M.soft=std({color:'#e3d4bd',emissive:'#e3d4bd',emissiveIntensity:.25,roughness:1});
+  M.cushionIn=std({color:'#efe4d2',emissive:'#efe4d2',emissiveIntensity:.25,roughness:1});
+  M.cushionOut=std({color:'#efe7da',roughness:.95});
   M.fabricDark=std({color:'#4a4a52',emissive:'#4a4a52',emissiveIntensity:.25,roughness:1});
   M.leather=std({color:'#8a5a3a',emissive:'#8a5a3a',emissiveIntensity:.25,roughness:.7});
+  M.rattan=std({color:'#9a7550',roughness:.85});
+  M.ceramic=new THREE.MeshPhysicalMaterial({color:'#7cbcb0',roughness:.22,clearcoat:.8});
+  M.poolTile=std({color:'#3fb3b5',roughness:.4});
   M.mashrabiya=std({color:'#c09455',metalness:.95,roughness:.3,alphaMap:mashrabiyaTex(),alphaTest:.5,side:THREE.DoubleSide});
-  M.water=std({color:'#0a3a40',metalness:.1,roughness:.06,normalMap:waterNormals(),normalScale:new THREE.Vector2(.55,.55),envMapIntensity:1.3});
+  M.water=std({color:'#127a80',metalness:.1,roughness:.06,normalMap:waterNormals(),normalScale:new THREE.Vector2(.55,.55),envMapIntensity:1.3});
   M.water.normalMap.repeat.set(1/3.2,1/3.2);
+  M.pool=std({color:'#2aa3a8',metalness:.1,roughness:.04,normalMap:M.water.normalMap,normalScale:new THREE.Vector2(.25,.25),envMapIntensity:1.1,transparent:true,opacity:.88});
+  M.jet=std({color:'#ffffff',emissive:'#dff6ff',emissiveIntensity:.4,transparent:true,opacity:.55});
 }
 function ceilingTex(){
   return canvasTex(256,256,(x,w,h)=>{ x.fillStyle='#d9d2c6'; x.fillRect(0,0,w,h);
@@ -181,133 +230,225 @@ function plane(w,d,mat,x,y,z){                       // flat on the ground
   const g=new THREE.PlaneGeometry(w,d); g.rotateX(-PI/2); g.translate(x,y,z);
   const m=new THREE.Mesh(metreUV(g),mat); m.receiveShadow=true; return m;
 }
+// collects many small static pieces and merges them per material (far fewer draw calls)
+function batch(parent){
+  const lists=new Map();
+  const add=(w,h,d,mat,x=0,y=0,z=0,ry=0)=>{ const g=new THREE.BoxGeometry(w,h,d); if(ry) g.rotateY(ry); g.translate(x,y,z); push(g,mat); };
+  const push=(g,mat)=>{ g=metreUV(g); for(const k of Object.keys(g.attributes)) if(!['position','normal','uv'].includes(k)) g.deleteAttribute(k);
+    if(!lists.has(mat)) lists.set(mat,[]); lists.get(mat).push(g); };
+  add.geo=push;
+  add.done=()=>{ for(const [mat,gs] of lists){ const m=new THREE.Mesh(mergeGeometries(gs),mat); m.castShadow=!mat.emissiveIntensity||mat.emissiveIntensity<.5; m.receiveShadow=true; parent.add(m); } lists.clear(); };
+  return add;
+}
+function panelGeo(w,h,cell){ const g=new THREE.PlaneGeometry(w,h), uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,uv.getX(i)*w/cell,uv.getY(i)*h/cell); return g; }
+function scaleUV(g,k){ const uv=g.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,uv.getX(i)*k,uv.getY(i)*k); return g; }
+function extrude(B,shape,depth,mat,z0,opts={}){ const g=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:false,curveSegments:24,...opts}); g.translate(0,0,z0); B.geo(g,mat); }
 function signPlate(text,w,h,x,y,z,color){
   const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),signMat(text,color)); m.position.set(x,y,z); m.renderOrder=2; return m;
 }
+function glassPane(w,h,x,y,z,ry=0){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),M.glass); m.position.set(x,y,z); m.rotation.y=ry; return m; }
+function frameRect(B,w,h,t,x,y,z,mat=M.bronze,depth=.12){
+  B(w,t,depth,mat,x,y+h/2-t/2,z); B(w,t,depth,mat,x,y-h/2+t/2,z); B(t,h,depth,mat,x-w/2+t/2,y,z); B(t,h,depth,mat,x+w/2-t/2,y,z);
+}
+// bronze-framed glass wall, bottom at y0
+function glazing(g,B,w,h,x,y0,z,nx=3,ny=1,t=.07){
+  const y=y0+h/2; g.add(glassPane(w,h,x,y,z)); frameRect(B,w,h,t*1.5,x,y,z);
+  for(let i=1;i<nx;i++) B(t,h,.1,M.bronze,x-w/2+i*w/nx,y,z);
+  for(let j=1;j<ny;j++) B(w,t,.1,M.bronze,x,y0+j*h/ny,z);
+}
+function door(g,B,x,z,w=2.4,h=3.4){
+  glazing(g,B,w,h,x,0,z,2,1,.09);
+  for(const s of [-1,1]) B(.05,1.7,.06,M.gold,x+s*.2,1.35,z+.12);
+  frameRect(B,w+.5,h+.3,.22,x,(h+.3)/2,z+.08,M.bronze,.34);
+}
+function mash(g,B,w,h,x,y0,z,ry=0,cell=1.1){
+  const p=new THREE.Mesh(panelGeo(w,h,cell),M.mashrabiya); p.position.set(x,y0+h/2,z); p.rotation.y=ry; p.castShadow=true; g.add(p);
+  if(!ry) frameRect(B,w,h,.07,x,y0+h/2,z,M.bronze,.1);
+  return p;
+}
+function pendant(B,x,y,z,s=1){ B(.36*s,.5*s,.36*s,M.glow,x,y,z); B(.012,1.6,.012,M.darkMetal,x,y+.25*s+.8,z); }
+function bottles(B,x,y,z,w,rows=4){
+  for(let r=0;r<rows;r++){ B(w,.04,.36,M.glowShelf,x,y+r*.55,z);
+    const n=Math.floor(w/.24); for(let i=0;i<n;i++){ const hh=.18+((i*7+r)%3)*.05; B(.09,hh,.09,(i+r)%3?M.amber:M.gold,x-w/2+.15+i*.24,y+r*.55+.02+hh/2,z); } }
+}
 // lit interior room seen through the glass: one inward-facing box (floor, walls, glowing ceiling)
-function interior(w,h,d,floor){
+const back=m=>m.userData.back||(m.userData.back=Object.assign(m.clone(),{side:THREE.BackSide}));
+function interior(w,h,d,floor,x=0,z0=-.05){
   const g=metreUV(new THREE.BoxGeometry(w,h,d)); const m=new THREE.Mesh(g,[M.wallIn,M.wallIn,M.ceilIn,floor,M.wallIn,M.wallIn]);
-  for(const mm of m.material) mm.side=THREE.BackSide;
-  m.position.set(0,h/2,-d/2-.05); return m;
+  m.material=m.material.map(back);
+  m.position.set(x,h/2,z0-d/2); return m;
 }
-// exterior shell behind a facade: side walls, roof slab and back wall
-function shell(g,w,h,d,mat){
-  g.add(box(.5,h,d,mat,-w/2+.25,h/2,-d/2), box(.5,h,d,mat,w/2-.25,h/2,-d/2),
-        box(w,.6,d,mat,0,h-.3,-d/2), box(w,h,.5,mat,0,h/2,-d+.25));
+function shellB(B,w,h,d,mat,zf=0){
+  B(.5,h,d+zf,mat,-w/2+.25,h/2,-(d+zf)/2-0); B(.5,h,d+zf,mat,w/2-.25,h/2,-(d+zf)/2);
+  B(w,.6,d,mat,0,h-.3,-d/2); B(w,h,.5,mat,0,h/2,-d+.25);
 }
-function displays(g,w,d,mat,top,count=6,y=.9){
-  for(let i=0;i<count;i++){
-    const x=-w/2+2+(i%3)*(w-4)/2, z=-3-Math.floor(i/3)*(d-6)/1.6;
-    g.add(box(2.2,y,1.1,mat,x,y/2,z,{cast:false}));
-    if(top) for(let k=0;k<3;k++) g.add(box(.28,.36,.2,top,x-.6+k*.6,y+.18,z,{cast:false}));
-  }
+function sofa(B,x,z,mat,ry=0,len=2.6){
+  const c=Math.cos(ry), s=Math.sin(ry), P=(dx,dz)=>[x+dx*c+dz*s,z-dx*s+dz*c];
+  let p=P(0,0); B(len,.42,1,mat,p[0],.3,p[1],ry); p=P(0,-.42); B(len,.6,.22,mat,p[0],.7,p[1],ry);
+  p=P(-len/2+.12,0); B(.24,.62,1,mat,p[0],.4,p[1],ry); p=P(len/2-.12,0); B(.24,.62,1,mat,p[0],.4,p[1],ry);
+  p=P(-len/4,.05); B(len/2-.1,.14,.8,M.cushionIn,p[0],.58,p[1],ry); p=P(len/4,.05); B(len/2-.1,.14,.8,M.cushionIn,p[0],.58,p[1],ry);
+}
+// rounded-front footprint as a 2D shape (x, -z): front corners rounded with radius rc, inset from the outline by `ins`
+function roundedPlan(w,d,rc,ins=0){
+  const s=new THREE.Shape(), r=rc-ins;
+  s.moveTo(-w/2+ins,d); s.lineTo(-w/2+ins,rc); s.absarc(-w/2+rc,rc,r,PI,1.5*PI,false);
+  s.lineTo(w/2-rc,ins); s.absarc(w/2-rc,rc,r,1.5*PI,2*PI,false); s.lineTo(w/2-ins,d); s.closePath(); return s;
+}
+function planBand(B,shape,y0,hh,mat){ const g=new THREE.ExtrudeGeometry(shape,{depth:hh,bevelEnabled:false,curveSegments:20}); g.rotateX(-PI/2); g.translate(0,y0,0); B.geo(g,mat); }
+// points along the front of a rounded plan (left side → corner → front → corner → right side)
+function frontPath(w,rc,ins,sideDepth,step){
+  const pts=[], add=(x,z,a)=>pts.push({x,z,a});
+  for(let z=-sideDepth;z<-rc;z+=step) add(-w/2+ins,z,-PI/2);
+  const r=rc-ins, n=Math.max(2,Math.round(r*PI/2/step));
+  for(let i=0;i<=n;i++){ const t=PI+i/n*PI/2; add(-w/2+rc+Math.cos(t)*r,-(rc+Math.sin(t)*r),-(t-1.5*PI)); }
+  for(let x=-w/2+rc+step;x<w/2-rc;x+=step) add(x,-ins,0);
+  for(let i=0;i<=n;i++){ const t=1.5*PI+i/n*PI/2; add(w/2-rc+Math.cos(t)*r,-(rc+Math.sin(t)*r),-(t-1.5*PI)); }
+  for(let z=-rc-step;z>-sideDepth;z-=step) add(w/2-ins,z,PI/2);
+  return pts;
 }
 
-/* ---------------- five shop styles ---------------- */
-// 1. stone arches with gold mashrabiya in the arch heads (perfume)
-function shopArches(name){
-  const g=new THREE.Group(), w=20, h=11, d=16;
+/* ---------------- five shop styles (after the reference designs) ---------------- */
+// 1. perfume: travertine cube, three arches with thick stone surrounds, mashrabiya arch heads and tall screens
+function shopPerfume(name){
+  const g=new THREE.Group(), B=batch(g), w=18, h=9, d=14;
+  const archP=(cx,r,sp,base=.35)=>{ const p=new THREE.Path(); p.moveTo(cx-r,base); p.lineTo(cx+r,base); p.lineTo(cx+r,sp); p.absarc(cx,sp,r,0,PI,false); p.lineTo(cx-r,base); return p; };
+  const A=[[-5.6,1.7,4.2],[0,2.3,4.6],[5.6,1.7,4.2]];
   const s=new THREE.Shape(); s.moveTo(-w/2,0); s.lineTo(w/2,0); s.lineTo(w/2,h); s.lineTo(-w/2,h); s.closePath();
-  const arch=(cx,r,spring,base)=>{ const p=new THREE.Path(); p.moveTo(cx-r,base); p.lineTo(cx+r,base); p.lineTo(cx+r,spring);
-    p.absarc(cx,spring,r,0,PI,false); p.lineTo(cx-r,base); return p; };
-  for(const cx of [-6.3,0,6.3]) s.holes.push(arch(cx,2.15,5.6,.55));
-  const fg=new THREE.ExtrudeGeometry(s,{depth:.9,bevelEnabled:false}); fg.translate(0,0,-.9);
-  const f=new THREE.Mesh(metreUV(fg),M.travertine); f.castShadow=f.receiveShadow=true; g.add(f);
-  for(const cx of [-6.3,0,6.3]){
-    const gs=new THREE.ShapeGeometry(new THREE.Shape(arch(cx,2.15,5.6,.55).getPoints(24)));
-    const gl=new THREE.Mesh(gs,M.glass); gl.position.z=-.62; g.add(gl);
-    // mashrabiya screen filling the round arch head
-    const hs=new THREE.Shape(); hs.moveTo(cx-2.15,5.6); hs.absarc(cx,5.6,2.15,PI,0,true); hs.lineTo(cx-2.15,5.6);
-    const hg=new THREE.ShapeGeometry(hs,24); const uv=hg.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,uv.getX(i)/1.4,uv.getY(i)/1.4);
-    const sc=new THREE.Mesh(hg,M.mashrabiya); sc.position.z=-.35; sc.castShadow=true; g.add(sc);
-    g.add(box(4.6,.12,.3,M.gold,cx,5.6,-.3,{uv:false}));                  // transom bar
+  for(const [cx,r,sp] of A) s.holes.push(archP(cx,r,sp));
+  extrude(B,s,.8,M.travertine,-.8);
+  for(const [cx,r,sp] of A){
+    const o=new THREE.Shape(), R2=r+.5; o.moveTo(cx-R2,.35); o.lineTo(cx+R2,.35); o.lineTo(cx+R2,sp); o.absarc(cx,sp,R2,0,PI,false); o.lineTo(cx-R2,.35);
+    o.holes.push(archP(cx,r,sp)); extrude(B,o,.4,M.limestone,0);
+    const hs=new THREE.Shape(); hs.moveTo(cx-r,sp); hs.absarc(cx,sp,r,PI,0,true); hs.lineTo(cx-r,sp);
+    const sc=new THREE.Mesh(scaleUV(new THREE.ShapeGeometry(hs,24),1/1.1),M.mashrabiya); sc.position.z=-.3; sc.castShadow=true; g.add(sc);
+    B(2*r,.12,.14,M.bronze,cx,sp,-.3);
+    if(cx===0) door(g,B,0,-.5,2*r-.3,sp-.4); else glazing(g,B,2*r,sp-.35,cx,.35,-.5,3,2);
   }
-  g.add(box(w+.6,.5,1.3,M.travertine,0,h+.25,-.45), box(w+.3,.55,1.05,M.travertine,0,.27,-.3));  // cornice + plinth
-  g.add(signPlate(name,8,1.5,0,9.2,.02,'#cfa762'));
-  shell(g,w,h,d,M.travertine); g.add(interior(w-1.2,h-.8,d-1.6,M.marbleIn));
-  displays(g,w-2,d,M.marbleIn,M.gold,6,1.0);
-  g.userData.spots=[-6.3,0,6.3]; g.userData.dispZ=-1.4;
+  for(const x of [-2.95,2.95]) mash(g,B,.95,6.4,x,.9,.06);
+  for(const x of [-8.3,8.3]) mash(g,B,.8,5.4,x,1.2,.06);
+  B(w+.6,.5,1.3,M.limestone,0,h+.25,-.4); B(w+.3,.36,1.05,M.limestone,0,.18,-.25);
+  B(w-.4,.06,.06,M.glow,0,h-.12,.24);                                                   // warm light line under the cornice
+  g.add(signPlate(name,5.6,.95,0,8.15,.04,'#c99a52'));
+  shellB(B,w,h,d,M.travertine); g.add(interior(w-1.2,h-.8,d-1.6,M.marbleIn));
+  for(const x of [-5.6,0,5.6]) bottles(B,x,1.1,-d+1.4,3.2,5);
+  for(const x of [-8,8]) bottles(B,x,1.1,-6,1,5);
+  const ctr=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,1,32),M.marbleIn); ctr.position.set(0,.5,-6.5); g.add(ctr);
+  B(1.4,.9,.1,M.glow,0,6.3,-4); pendant(B,-5.6,5.6,-4,1.2); pendant(B,5.6,5.6,-4,1.2);
+  B.done(); g.userData.spots=[-5.6,5.6]; g.userData.dispZ=-1.4;
   return g;
 }
-// 2. curved glass front wrapped in vertical bronze louvers (fashion)
-function shopLouvers(name){
-  const g=new THREE.Group(), w=20, h=12, d=16, sag=2.6, Rr=(w*w/4+sag*sag)/(2*sag), zc=sag-Rr, a=Math.asin(w/2/Rr);
-  const n=58, fin=new THREE.BoxGeometry(.09,h-1.6,.55), fins=new THREE.InstancedMesh(metreUV(fin),M.bronze,n);
-  const o=new THREE.Object3D();
-  for(let i=0;i<n;i++){ const t=-a+2*a*i/(n-1), sw=Math.sin(i*.37)*.08;
-    o.position.set(Rr*Math.sin(t),.9+(h-1.6)/2,zc+Rr*Math.cos(t)); o.rotation.set(0,t+sw,0); o.updateMatrix(); fins.setMatrixAt(i,o.matrix); }
+// 2. fashion: two floors with rounded corners, upper floor wrapped in bronze louvres, projecting stone portal
+function shopFashion(name){
+  const g=new THREE.Group(), B=batch(g), w=20, h=9.4, d=14, rc=2.8;
+  planBand(B,roundedPlan(w,d,rc,0),0,.35,M.limestone);
+  planBand(B,roundedPlan(w,d,rc,0),4.2,.7,M.limestone);
+  planBand(B,roundedPlan(w,d,rc,0),h-.8,.8,M.limestone);
+  planBand(B,roundedPlan(w,d,rc,.9),4.9,h-.8-4.9,M.wallGlow);                         // lit upper floor behind the louvres
+  // ground-floor glass: straight runs plus the two curved corners
+  for(const sx of [-1,1]){ glazing(g,B,4.0,3.85,sx*5.2,.35,-.35,3,1);
+    const cg=new THREE.Mesh(new THREE.CylinderGeometry(rc-.35,rc-.35,3.85,20,1,true,sx<0?1.5*PI:0,PI/2),M.glass); cg.position.set(sx*(w/2-rc),.35+3.85/2,-rc); g.add(cg);
+    for(let k=1;k<3;k++){ const t=(sx<0?1.5*PI:0)+k*PI/6; B(.07,3.85,.07,M.bronze,sx*(w/2-rc)+Math.sin(t)*(rc-.35),.35+3.85/2,-rc+Math.cos(t)*(rc-.35)); } }
+  // louvres on the upper floor
+  const P=frontPath(w,rc,.12,6,.34), fin=metreUV(new THREE.BoxGeometry(.06,3.5,.42)), fins=new THREE.InstancedMesh(fin,M.bronze,P.length), o=new THREE.Object3D();
+  P.forEach((p,i)=>{ o.position.set(p.x,4.9+1.75+.05,p.z); o.rotation.set(0,p.a,0); o.updateMatrix(); fins.setMatrixAt(i,o.matrix); });
   fins.castShadow=fins.receiveShadow=true; g.add(fins);
-  const gl=new THREE.Mesh(new THREE.CylinderGeometry(Rr-.5,Rr-.5,h-1.2,48,1,true,-a,2*a),M.glass); gl.position.set(0,h/2,zc); g.add(gl);
-  // stone base and crown that follow the curve
-  const band=(y0,hh,mat)=>{ const s=new THREE.Shape(); s.absarc(0,0,Rr+.15,1.5*PI-a,1.5*PI+a,false); s.lineTo(w/2,zc+1.2); s.lineTo(-w/2,zc+1.2);
-    const eg=new THREE.ExtrudeGeometry(s,{depth:hh,bevelEnabled:false,curveSegments:40}); eg.rotateX(-PI/2); eg.translate(0,y0,zc);
-    const m=new THREE.Mesh(metreUV(eg),mat); m.castShadow=m.receiveShadow=true; return m; };
-  g.add(band(0,.9,M.limestone), band(h-.7,.7,M.limestone));
-  g.add(signPlate(name,7,1.3,0,h-.35,sag+.17,'#2b211a'));
-  shell(g,w,h,d,M.limestone); g.add(interior(w-1.2,h-.8,d-1.6,M.woodIn)); g.userData.arc={Rr,zc,a};
-  for(let i=0;i<5;i++){ const x=-7+i*3.5; g.add(box(.05,1.6,2.4,M.gold,x,1.9,-4,{cast:false,uv:false}));     // clothes rails
-    for(let k=0;k<6;k++) g.add(box(.42,1,.06,i%2?M.fabricDark:M.soft,x,1.4,-4.9+k*.36,{cast:false})); }
+  // portal: thick stone frame with a rounded opening and a tall bronze door
+  const ps=new THREE.Shape(); ps.moveTo(-3.3,0); ps.lineTo(3.3,0); ps.lineTo(3.3,8.6); ps.lineTo(-3.3,8.6); ps.closePath();
+  const ho=new THREE.Path(), r=1.1; ho.moveTo(-2,0); ho.lineTo(2,0); ho.lineTo(2,7-r); ho.quadraticCurveTo(2,7,2-r,7); ho.lineTo(-2+r,7); ho.quadraticCurveTo(-2,7,-2,7-r); ho.lineTo(-2,0); ps.holes.push(ho);
+  extrude(B,ps,1.7,M.limestone,-.2,{bevelEnabled:true,bevelThickness:.06,bevelSize:.06,bevelSegments:2});
+  door(g,B,0,-.1,3.2,6.2); B(3.6,.1,.1,M.glow,0,6.95,1.2);
+  for(let k=0;k<3;k++) B(5.6-k*.4,.15,.5,M.limestone,0,.075+k*.15-.15,1.75+(2-k)*.45);
+  g.add(signPlate(name,4.6,.8,0,7.8,1.52,'#7a5a34'));
+  B(.5,h,d-rc,M.limestone,-w/2+.25,h/2,-rc-(d-rc)/2); B(.5,h,d-rc,M.limestone,w/2-.25,h/2,-rc-(d-rc)/2); B(w,h,.5,M.limestone,0,h/2,-d+.25);
+  // inside: marble floor and ceiling following the rounded front, rails, mannequins
+  const fl=new THREE.Mesh(new THREE.ShapeGeometry(roundedPlan(w,d,rc,.4),12),M.marbleIn); fl.rotation.x=-PI/2; fl.position.y=.36; g.add(fl);
+  const ce=new THREE.Mesh(new THREE.ShapeGeometry(roundedPlan(w,d,rc,.4),12),M.ceilIn); ce.rotation.x=PI/2; ce.scale.y=-1; ce.position.y=4.18; g.add(ce);
+  g.add(interior(w-1.4,3.8,d-3,M.marbleIn,0,-2.5));
+  const dress=new THREE.LatheGeometry([[0,0],[.28,0],[.22,.5],[.16,.9],[.13,1.2],[.17,1.4],[.08,1.55],[.09,1.7],[0,1.78]].map(v=>new THREE.Vector2(v[0],v[1])),16);
+  for(const [x,z,m] of [[-6.4,-1.4,M.cushionIn],[-4.3,-1.6,M.leather],[4.4,-1.5,M.soft],[6.5,-1.4,M.cushionIn]]){
+    const mm=new THREE.Mesh(dress,m); mm.position.set(x,.75,z); g.add(mm); B(.7,.4,.7,M.marbleIn,x,.55,z); }
+  for(const x of [-7,-3.5,3.5,7]) { B(.05,1.7,2.6,M.gold,x,2,-6); for(let k=0;k<7;k++) B(.4,1.05,.06,k%2?M.soft:M.leather,x,1.5,-7.1+k*.36); }
+  B.done(); g.userData.spots=[-5.4,5.4]; g.userData.dispZ=-2.6; g.userData.foot={hw:w/2,front:1.7};
   return g;
 }
-// 3. full-height glass showroom in a thick stone portal (furniture)
-function shopShowroom(name){
-  const g=new THREE.Group(), w=20, h=10, d=16;
-  g.add(box(1.4,h,1.2,M.sandstone,-w/2+.7,h/2,-.6), box(1.4,h,1.2,M.sandstone,w/2-.7,h/2,-.6), box(w,1.6,1.2,M.sandstone,0,h-.8,-.6),
-        box(w,.4,1.2,M.sandstone,0,.2,-.6));
-  const gw=w-2.8, gh=h-2;
-  const gl=new THREE.Mesh(new THREE.PlaneGeometry(gw,gh),M.glass); gl.position.set(0,.4+gh/2,-.7); g.add(gl);
-  for(let i=0;i<=6;i++) g.add(box(.08,gh,.12,M.darkMetal,-gw/2+i*gw/6,.4+gh/2,-.66,{uv:false}));
-  g.add(box(gw,.1,.12,M.darkMetal,0,4.6,-.66,{uv:false}));
-  g.add(box(gw,.25,1.6,M.sandstone,0,4.55,-1.6));                                                    // mezzanine edge
-  g.add(signPlate(name,7,1.2,0,h-.8,.02,'#3a2a1c'));
-  shell(g,w,h,d,M.sandstone); g.add(interior(w-1.2,h-.8,d-1.6,M.woodIn));
-  const sofa=(x,z,mat)=>{ g.add(box(2.6,.45,1,mat,x,.32,z,{cast:false}), box(2.6,.55,.25,mat,x,.75,z-.45,{cast:false}),
-    box(.25,.35,1,mat,x-1.2,.6,z,{cast:false}), box(.25,.35,1,mat,x+1.2,.6,z,{cast:false})); };
-  sofa(-5,-4,M.soft); sofa(0,-5.5,M.leather); sofa(5.2,-4,M.fabricDark);
-  for(const x of [-5,0,5.2]) g.add(box(1.2,.35,.7,M.woodIn,x,.18,-2.6,{cast:false}));
-  for(const x of [-7.5,7.6]){ g.add(box(.05,1.6,.05,M.darkMetal,x,.8,-3,{cast:false,uv:false}), box(.5,.35,.5,M.lamp,x,1.7,-3,{cast:false})); }
+// 3. furniture: tall glass hall under a deep stone canopy with a wooden ceiling, lower wings, open loggia
+function shopFurniture(name){
+  const g=new THREE.Group(), B=batch(g), d=14;
+  // central hall
+  B(.9,10.4,d,M.travertine,-4.95,5.2,-d/2); B(.6,10.4,d,M.travertine,4.8,5.2,-d/2);
+  B(10.7,.9,d+2.6,M.travertine,0,10.15,-d/2+1.3); B(10.5,.08,2.6,M.soffit,0,9.66,1.3);             // canopy + wood soffit
+  glazing(g,B,9,9.3,0,.3,-.3,4,2);
+  for(const x of [-4.1,-3.25]) mash(g,B,.8,9.2,x,.3,.08);
+  door(g,B,0,.6,3,3.6); B(3.6,.25,1.3,M.bronze,0,3.95,.4);
+  g.add(signPlate(name,5,.8,0,10.15,1.32+1.3,'#f3e3c3'));
+  g.add(interior(9.4,9.6,d-1.2,M.woodIn,-.1,-.4));
+  for(const [x,y] of [[-1.6,7.6],[-.6,6.8],[.5,7.3],[1.5,6.5],[0,8.2]]) pendant(B,x,y,-3.2,1.3);
+  // left wing with an open loggia (wood ceiling) and a glass wall set back
+  B(6.2,.8,d,M.travertine,-8.4,5.8,-d/2); B(5.6,.06,3.4,M.soffit,-8.2,5.37,-1.7); B(.7,6.2,d,M.travertine,-11.15,3.1,-d/2);
+  glazing(g,B,5.4,5,-8.1,.3,-3.4,3,1); g.add(interior(5.4,5.2,d-4,M.woodIn,-8.1,-3.5));
+  const lp=plane(5.6,3.4,M.paving,-8.2,.02,-1.7); g.add(lp);
+  sofa(B,-8.2,-1.8,M.cushionOut,0,2.4); B(1.1,.35,.6,M.woodOut,-8.2,.18,-.7);
+  B(.12,1.5,.12,M.bronze,-10.2,.75,-2.4); B(.5,.4,.5,M.glow,-10.2,1.6,-2.4);
+  // right wing: glass shop front with a screen at the corner
+  B(6.3,1.1,d,M.travertine,8.1,6.05,-d/2); B(.6,6.6,d,M.travertine,10.95,3.3,-d/2);
+  glazing(g,B,5,5.2,7.6,.3,-.3,3,1); mash(g,B,.6,5.6,10.35,.3,.1); g.add(interior(5.4,5.4,d-1.2,M.woodIn,7.9,-.4));
+  B(23.2,.35,1.1,M.travertine,0,.17,.0); B(.4,6.2,d,M.travertine,-11.3,3.1,-d/2); B(23,10.4,.5,M.travertine,0,5.2,-d+.25);
+  sofa(B,-1.8,-4.8,M.cushionIn,0); sofa(B,2.2,-6.2,M.cushionIn,0); sofa(B,7.8,-4,M.cushionIn,0); B(1.2,.38,.7,M.woodIn,-1.8,.19,-3.6); B(1.2,.38,.7,M.woodIn,2.2,.19,-5);
+  for(let k=0;k<3;k++) B(2.6,.04,.4,M.glowShelf,-3,1.2+k*.9,-d+1.2);
+  B.done(); g.userData.spots=[-2.6,2.6,7.6]; g.userData.dispZ=-1.5; g.userData.foot={hw:11.5,front:.9};
   return g;
 }
-// 4. light stone box with one big rounded opening (electronics)
-function shopRounded(name){
-  const g=new THREE.Group(), w=20, h=10, d=16, r=1.6;
-  const s=new THREE.Shape(); s.moveTo(-w/2,0); s.lineTo(w/2,0); s.lineTo(w/2,h); s.lineTo(-w/2,h); s.closePath();
-  const ox=8.2, oy0=.5, oy1=8;
-  const hole=new THREE.Path(); hole.moveTo(-ox,oy0); hole.lineTo(ox,oy0); hole.lineTo(ox,oy1-r); hole.quadraticCurveTo(ox,oy1,ox-r,oy1);
-  hole.lineTo(-ox+r,oy1); hole.quadraticCurveTo(-ox,oy1,-ox,oy1-r); hole.lineTo(-ox,oy0); s.holes.push(hole);
-  const fg=new THREE.ExtrudeGeometry(s,{depth:.8,bevelEnabled:true,bevelThickness:.08,bevelSize:.08,bevelSegments:3,curveSegments:16});
-  fg.translate(0,0,-.8); const f=new THREE.Mesh(metreUV(fg),M.limestone); f.castShadow=f.receiveShadow=true; g.add(f);
-  const gl=new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(hole.getPoints(16))),M.glass); gl.position.z=-.55; g.add(gl);
-  g.add(signPlate(name,6.5,1.1,0,9,.03,'#4a4a4a'));
-  shell(g,w,h,d,M.limestone); g.add(interior(w-1.2,h-.8,d-1.6,M.marbleIn));
-  for(let i=0;i<6;i++){ const x=-5.5+(i%3)*5.5, z=-3.4-Math.floor(i/3)*5;
-    g.add(box(3.4,.08,1.3,M.woodIn,x,.86,z,{cast:false}), box(.12,.82,.9,M.woodIn,x-1.4,.41,z,{cast:false}), box(.12,.82,.9,M.woodIn,x+1.4,.41,z,{cast:false}));
-    for(let k=0;k<4;k++){ const dv=box(.5,.03,.34,M.screen,x-1.15+k*.77,.91,z,{cast:false,uv:false}); dv.rotation.x=-.12; g.add(dv); } }
-  for(const x of [-8.6,8.6]) g.add(box(.15,4,2,M.screen,x,3.5,-8,{cast:false,uv:false}));
+// 4. electronics: low travertine pavilion with rounded corners, roof garden, bronze columns, screened corners
+function shopTech(name){
+  const g=new THREE.Group(), B=batch(g), w=20, h=6.4, d=14, rc=2.2;
+  planBand(B,roundedPlan(w,d,rc,0),0,.3,M.travertine);
+  planBand(B,roundedPlan(w+.6,d,rc+.3,0),5.0,1.4,M.travertine);
+  B(w-.6,.06,.06,M.glow,0,4.94,.15);
+  glazing(g,B,w-2*rc,4.7,0,.3,-.25,8,1);
+  for(const sx of [-1,1]){
+    const cg=new THREE.Mesh(new THREE.CylinderGeometry(rc-.25,rc-.25,4.7,18,1,true,sx<0?1.5*PI:0,PI/2),M.glass); cg.position.set(sx*(w/2-rc),2.65,-rc); g.add(cg);
+    const cm=new THREE.Mesh(new THREE.CylinderGeometry(rc,rc,4.6,18,1,true,sx<0?1.5*PI:0,PI/2),M.mashrabiya);
+    scaleUV(cm.geometry,1); { const uv=cm.geometry.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,uv.getX(i)*3.4/1.1,uv.getY(i)*4.6/1.1); }
+    cm.position.set(sx*(w/2-rc),2.65,-rc); cm.castShadow=true; g.add(cm);
+    const col=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,4.7,24),M.bronze); col.position.set(sx*3.4,2.65,.1); col.castShadow=true; g.add(col);
+  }
+  door(g,B,0,-.1,2.8,3.9); B(3.4,.25,.6,M.bronze,0,4.2,.15);
+  g.add(signPlate(name,5,.75,0,5.7,.36,'#7a5a34'));
+  B(.5,h,d-rc,M.travertine,-w/2+.25,h/2,-rc-(d-rc)/2); B(.5,h,d-rc,M.travertine,w/2-.25,h/2,-rc-(d-rc)/2); B(w,h,.5,M.travertine,0,h/2,-d+.25);
+  B(w-1,.3,d-1.5,M.mulch,0,6.45,-d/2);                                                  // roof garden soil
+  const fl=new THREE.Mesh(new THREE.ShapeGeometry(roundedPlan(w,d,rc,.3),12),M.marbleIn); fl.rotation.x=-PI/2; fl.position.y=.31; g.add(fl);
+  g.add(interior(w-1.2,4.6,d-2.6,M.marbleIn,0,-2.4));
+  const ce=new THREE.Mesh(new THREE.ShapeGeometry(roundedPlan(w,d,rc,.3),12),M.ceilIn); ce.rotation.x=PI/2; ce.scale.y=-1; ce.position.y=4.98; g.add(ce);
+  for(let i=0;i<6;i++){ const x=-5.5+(i%3)*5.5, z=-4.4-Math.floor(i/3)*3.6;
+    B(3.4,.07,1.2,M.woodIn,x,.86,z); B(.14,.82,.9,M.woodIn,x-1.4,.41,z); B(.14,.82,.9,M.woodIn,x+1.4,.41,z);
+    for(let k=0;k<4;k++) B(.48,.025,.32,M.screen,x-1.15+k*.77,.91,z); }
+  for(const x of [-6,0,6]){ B(2.6,1.5,.08,M.screenArt,x,2.8,-d+.6); }
+  for(const x of [-8.6,8.6]) for(let k=0;k<4;k++) B(.4,.04,2.2,M.glowShelf,x,1.2+k*.7,-7);
+  B.done(); g.userData.spots=[-5.8,-2.6,2.6,5.8]; g.userData.dispZ=-1.3; g.userData.roof={y:6.6,w:w-1.6,d:d-2};
   return g;
 }
-// 5. stone block whose upper floors sit behind a full gold mashrabiya screen (jewellery)
-function shopScreen(name){
-  const g=new THREE.Group(), w=20, h=13, d=16;
-  g.add(box(w,h-4.5,1,M.travertine,0,4.5+(h-4.5)/2,-1.2));
-  const sc=new THREE.Mesh(new THREE.PlaneGeometry(w-2,h-6.4),M.mashrabiya);
-  { const uv=sc.geometry.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,uv.getX(i)*(w-2)/1.6,uv.getY(i)*(h-6.4)/1.6); }
-  sc.position.set(0,5.1+(h-6.4)/2,-.05); sc.castShadow=true; g.add(sc);
-  g.add(box(w-2,.1,.5,M.gold,0,5.1,-.25,{uv:false}), box(w-2,.1,.5,M.gold,0,h-1.3,-.25,{uv:false}));
-  g.add(box(.6,h,1.6,M.travertine,-w/2+.3,h/2,-.8), box(.6,h,1.6,M.travertine,w/2-.3,h/2,-.8), box(w,1.2,1.6,M.travertine,0,h-.6,-.8));
-  const gl=new THREE.Mesh(new THREE.PlaneGeometry(w-1.2,4),M.glass); gl.position.set(0,2.4,-1.5); g.add(gl);
-  for(let i=0;i<=5;i++) g.add(box(.14,4,.18,M.bronze,-(w-1.2)/2+i*(w-1.2)/5,2.4,-1.45,{uv:false}));
-  g.add(box(w-1.2,.18,2.4,M.bronze,0,4.45,-.3));                                                    // bronze canopy
-  g.add(signPlate(name,6.5,1.1,0,4.95,.95,'#d6b26c'));
-  g.userData.dispZ=-2.3;
-  shell(g,w,h,d,M.travertine); g.add(interior(w-1.2,4.2,d-2.4,M.marbleIn));
-  for(let i=0;i<5;i++){ const x=-7+i*3.5; g.add(box(1.6,1,.7,M.marbleIn,x,.5,-3.5,{cast:false}));
-    const vit=new THREE.Mesh(new THREE.BoxGeometry(1.5,.45,.6),M.glass); vit.position.set(x,1.23,-3.5); g.add(vit);
-    g.add(box(.12,.05,.12,M.gold,x,1.05,-3.5,{uv:false})); }
+// 5. jewellery: glass ground floor under a cube wrapped in gold mashrabiya
+function shopJewel(name){
+  const g=new THREE.Group(), B=batch(g), w=15, h=9.6, d=12;
+  B(.6,h,d,M.travertine,-w/2+.3,h/2,-d/2); B(.6,h,d,M.travertine,w/2-.3,h/2,-d/2);
+  B(w+.4,.45,d+.4,M.travertine,0,h-.2,-d/2+.2); B(w,4.8,.4,M.wallGlow,0,6.6,-1.3); B(w,.35,d,M.travertine,0,.17,-d/2);
+  B(w,.25,1.3,M.soffit,0,4.05,-.6);
+  mash(g,B,w-.1,4.9,0,4.2,.1,0,1.4);
+  for(const sx of [-1,1]){ const p=mash(g,B,5.5,4.9,sx*(w/2+.06),4.2,-2.75,PI/2,1.4); }
+  B(w+.2,.12,.18,M.gold,0,4.2,.12); B(w+.2,.12,.18,M.gold,0,9.1,.12);
+  glazing(g,B,w-1.4,3.6,0,.35,-1.2,5,1);
+  door(g,B,0,-1.05,2.4,3.3);
+  g.add(signPlate(name,4.6,.7,0,3.95,.14,'#d9b56c'));
+  B(w,h,.5,M.travertine,0,h/2,-d+.25);
+  g.add(interior(w-1.4,3.8,d-2.8,M.marbleIn,0,-1.4));
+  for(let i=0;i<5;i++){ const x=-5+i*2.5; B(1.5,.95,.7,M.marbleIn,x,.48,-4.6); g.add(glassBox(1.4,.45,.6,x,1.18,-4.6)); B(.9,.04,.4,M.glowShelf,x,.98,-4.6); }
+  for(let k=0;k<3;k++) B(w-3,.05,.35,M.glowShelf,0,1.2+k*.8,-d+1.6);
+  B.done(); g.userData.spots=[-4.6,-1.8,1.8,4.6]; g.userData.dispZ=-2.3; g.userData.foot={hw:w/2+.2,front:.2};
   return g;
 }
-const SHOPS=[['دار العطور',shopArches],['أزياء الرمال',shopLouvers],['أثاث النخلة',shopShowroom],
-             ['إلكترونيات المستقبل',shopRounded],['مجوهرات اللؤلؤ',shopScreen]];
+function glassBox(w,h,d,x,y,z){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M.glass); m.position.set(x,y,z); return m; }
+const SHOPS=[['دار العطور',shopPerfume],['أزياء الرمال',shopFashion],['أثاث النخلة',shopFurniture],
+             ['إلكترونيات المستقبل',shopTech],['مجوهرات اللؤلؤ',shopJewel]];
 export const FACADE_NAMES=['أقواس ومشربية','شرائح برونز منحنية','واجهة زجاج بإطار حجر','حجر بفتحة دائرية الزوايا','مشربية ذهبية كاملة'];
 
 /* ---------------- a real shop's products in its window ---------------- */
@@ -341,77 +482,115 @@ function windowDisplay(g,store){
   });
 }
 
-/* ---------------- palms, lamps, benches ---------------- */
-function frondTex(){
+/* ---------------- date palms: every one built differently ---------------- */
+function frondTex(dry){
   return canvasTex(512,128,(x,w,h)=>{
     x.clearRect(0,0,w,h);
-    for(let i=12;i<w-6;i+=7){ const t=i/w, len=(h*.48)*Math.sin(Math.min(1,t*1.15)*PI*.92)+4;
-      const gcol=`hsl(${78+Math.sin(i)*6},${38+t*14}%,${22+t*14+Math.cos(i*1.7)*4}%)`;
-      x.strokeStyle=gcol; x.lineWidth=3.2-t*1.4;
-      for(const sgn of [-1,1]){ x.beginPath(); x.moveTo(i,h/2); x.quadraticCurveTo(i+len*.35,h/2+sgn*len*.5,i+len*.75,h/2+sgn*len); x.stroke(); } }
-    x.strokeStyle='#6f7a3a'; x.lineWidth=4; x.beginPath(); x.moveTo(0,h/2); x.lineTo(w,h/2); x.stroke();
+    for(let i=10;i<w-4;i+=4){ const t=i/w, len=(h*.5)*Math.pow(Math.sin(Math.min(1,t*1.08)*PI*.95),.6)*(.78+((i*7)%13)/45);
+      const hue=dry?30+((i*3)%9):68+((i*5)%16), sat=dry?38:28+t*22, lig=dry?36+((i*7)%12):(22+t*18+((i*11)%9));
+      x.strokeStyle=`hsl(${hue},${sat}%,${lig}%)`; x.lineWidth=2.4-t*1.3;
+      for(const sg of [-1,1]){ if(((i*13+(sg>0?5:0))%19)===0) continue;
+        x.beginPath(); x.moveTo(i,h/2); x.quadraticCurveTo(i+len*.25,h/2+sg*len*.55,i+len*.6,h/2+sg*len*.98); x.stroke(); } }
+    x.strokeStyle=dry?'#7a5a32':'#9a9a58'; x.lineWidth=3; x.beginPath(); x.moveTo(0,h/2); x.lineTo(w,h/2); x.stroke();
   });
 }
 function barkTex(){
-  const t=canvasTex(128,256,(x,w,h)=>{
-    x.fillStyle='#7a6448'; x.fillRect(0,0,w,h);
-    for(let j=0;j<h;j+=16) for(let i=-1;i<5;i++){ const cx=i*32+(j/16%2)*16, cy=j;
-      x.fillStyle=`hsl(30,${22+((i*7+j)%9)}%,${30+((i*13+j)%11)}%)`;
-      x.beginPath(); x.moveTo(cx,cy-12); x.lineTo(cx+15,cy); x.lineTo(cx,cy+12); x.lineTo(cx-15,cy); x.closePath(); x.fill();
-      x.strokeStyle='rgba(30,20,10,.55)'; x.lineWidth=2; x.stroke(); }
+  const t=canvasTex(256,512,(x,w,h)=>{
+    x.fillStyle='#4a3a28'; x.fillRect(0,0,w,h);
+    const cw=64, rh=40;
+    for(let j=-1;j<h/rh+1;j++) for(let i=-1;i<w/cw+1;i++){ const cx=i*cw+(((j%2)+2)%2)*cw/2, cy=j*rh;
+      const gr=x.createLinearGradient(cx,cy-rh*.5,cx,cy+rh*.7); gr.addColorStop(0,'#a58a66'); gr.addColorStop(.55,'#806848'); gr.addColorStop(1,'#3a2c1e');
+      x.fillStyle=gr; x.beginPath(); x.moveTo(cx-cw*.56,cy-rh*.45); x.quadraticCurveTo(cx,cy+rh*.95,cx+cw*.56,cy-rh*.45); x.quadraticCurveTo(cx,cy+rh*.15,cx-cw*.56,cy-rh*.45); x.fill(); }
   });
   t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
 }
-let palmParts=null;
-function palmGeoms(){
-  if(palmParts) return palmParts;
-  const fronds=[]; const n=18;
-  for(let i=0;i<n;i++){
-    const len=R(2.6,3.4), g=new THREE.PlaneGeometry(len,1.15,12,2), p=g.attributes.position;
-    for(let k=0;k<p.count;k++){ const x=p.getX(k)+len/2, y=p.getY(k), t=x/len;
-      p.setXYZ(k,x,-t*t*len*R(.42,.6)+Math.abs(y)*.25,y*(1-t*.35)); }
-    g.computeVertexNormals();
-    const tilt=i<6?R(.35,.7):R(-.15,.25), yaw=i*2.39996;
-    g.rotateZ(tilt); g.rotateY(yaw); fronds.push(g);
-  }
-  const crown=mergeGeometries(fronds);
-  palmParts={crown,frondMat:new THREE.MeshStandardMaterial({map:frondTex(),alphaTest:.45,side:THREE.DoubleSide,roughness:.75,
-    color:'#ffffff'}),barkMat:new THREE.MeshStandardMaterial({map:barkTex(),roughness:.95})};
-  palmParts.barkMat.map.repeat.set(1,5);
-  return palmParts;
+let PM=null;
+function palmMats(){
+  if(PM) return PM;
+  const bark=barkTex(); bark.repeat.set(3,16);
+  const fm=(dry,tint)=>new THREE.MeshStandardMaterial({map:frondTex(dry),color:tint,alphaTest:.4,side:THREE.DoubleSide,roughness:dry?.9:.65});
+  PM={fronds:[fm(false,'#ffffff'),fm(false,'#e6f0d8'),fm(false,'#fff2d6')],dry:fm(true,'#ffffff'),
+      bark:new THREE.MeshStandardMaterial({map:bark,bumpMap:bark,bumpScale:4,roughness:.95}),dates:new THREE.MeshStandardMaterial({color:'#a2551c',roughness:.45})};
+  return PM;
+}
+function frondGeo(L,elev,droop,width,fold){
+  const segs=12, pos=[], uv=[], idx=[];
+  for(let s=0;s<=segs;s++){ const t=s/segs, xx=L*t*Math.cos(elev), yy=L*t*Math.sin(elev)-droop*L*t*t;
+    const wv=width*Math.pow(Math.sin(Math.min(1,t*1.1+.05)*PI*.95),.7)*(1-.35*t);
+    for(const k of [-1,0,1]){ pos.push(xx,yy+(k?wv*fold:0),k*wv); uv.push(t,(k+1)/2); } }
+  for(let s=0;s<segs;s++) for(let k=0;k<2;k++){ const a=s*3+k, b=a+1, c=a+3, e=a+4; idx.push(a,c,b,b,c,e); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.setIndex(idx); g.computeVertexNormals(); return g;
 }
 function makePalm(h){
-  const {crown,frondMat,barkMat}=palmGeoms(), g=new THREE.Group();
-  const tg=new THREE.CylinderGeometry(.2,.3,h,10,10,true), p=tg.attributes.position, lean=R(-.4,.4);
-  for(let k=0;k<p.count;k++){ const t=(p.getY(k)+h/2)/h; p.setX(k,p.getX(k)+lean*t*t); }
+  const P=palmMats(), g=new THREE.Group(), lx=R(-.6,.6), lz=R(-.4,.4);
+  const tg=new THREE.CylinderGeometry(.26,.36,h,14,18,true), p=tg.attributes.position;
+  for(let k=0;k<p.count;k++){ const t=(p.getY(k)+h/2)/h, b=1+.05*Math.sin(t*11+lx*7); p.setXYZ(k,p.getX(k)*b+lx*t*t,p.getY(k),p.getZ(k)*b+lz*t*t); }
   tg.translate(0,h/2,0); tg.computeVertexNormals();
-  const tr=new THREE.Mesh(tg,barkMat); tr.castShadow=true; g.add(tr);
-  const cr=new THREE.Mesh(crown,frondMat); cr.position.set(lean,h,0); cr.rotation.y=R(0,TAU); cr.scale.setScalar(R(.9,1.1));
-  cr.castShadow=true; g.add(cr);
-  const boss=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),barkMat); boss.position.set(lean,h-.1,0); boss.scale.y=1.4; g.add(boss);
+  const tr=new THREE.Mesh(tg,P.bark); tr.castShadow=tr.receiveShadow=true; g.add(tr);
+  const top=new THREE.Vector3(lx,h,lz), green=[], dry=[], n=Math.floor(R(28,42)), droop=R(.22,.42), spread=R(.9,1.18), wid=R(.45,.6);
+  for(let i=0;i<n;i++){ const t=i/n, isDry=t<.14&&rnd()<.75;
+    const elev=isDry?R(-1.35,-.95):(-.45+t*1.85+R(-.15,.15)), L=(isDry?R(2.2,3):R(2.6,3.9))*spread*(t>.85?.7:1);
+    const fg=frondGeo(L,elev,isDry?.05:droop*(1-t*.6),wid*R(.85,1.1),R(.25,.45));
+    fg.rotateY(i*2.39996+R(-.25,.25)); fg.translate(top.x,top.y-.1-(1-t)*.55,top.z); (isDry?dry:green).push(fg); }
+  const cg=new THREE.Mesh(mergeGeometries(green),P.fronds[Math.floor(rnd()*3)]); cg.castShadow=true; g.add(cg);
+  if(dry.length){ const dg=new THREE.Mesh(mergeGeometries(dry),P.dry); dg.castShadow=true; g.add(dg); }
+  const boot=new THREE.Mesh(new THREE.CylinderGeometry(.44,.3,1.2,12),P.bark); boot.position.set(top.x,top.y-.55,top.z); g.add(boot);
+  if(rnd()<.45){ const ds=[]; const nc=2+Math.floor(rnd()*3);
+    for(let c=0;c<nc;c++){ const a=rnd()*TAU; for(let k=0;k<24;k++){ const s=new THREE.IcosahedronGeometry(.055,0);
+      s.translate(top.x+Math.cos(a)*(.5+R(0,.15))+R(-.12,.12),top.y-.7-R(0,.6),top.z+Math.sin(a)*(.5+R(0,.15))+R(-.12,.12)); ds.push(s); } }
+    g.add(new THREE.Mesh(mergeGeometries(ds),P.dates)); }
   return g;
 }
-function planter(x,z){
-  const g=new THREE.Group(); g.position.set(x,CURB,z);
-  const ring=new THREE.Mesh(metreUV(new THREE.CylinderGeometry(1.15,1.2,.45,28,1,true)),M.travertine); ring.position.y=.22;
-  ring.material=M.travertine; ring.castShadow=ring.receiveShadow=true; g.add(ring);
-  const soil=new THREE.Mesh(new THREE.CircleGeometry(1.12,28),M.sand); soil.rotation.x=-PI/2; soil.position.y=.36; soil.receiveShadow=true; g.add(soil);
-  const top=new THREE.Mesh(metreUV(new THREE.RingGeometry(1.12,1.32,28)),M.travertine); top.rotation.x=-PI/2; top.position.y=.45; g.add(top);
-  g.add(makePalm(R(5.5,8)).translateY(.36)); return g;
+
+/* ---------------- street furniture ---------------- */
+// bronze lantern post with mashrabiya glass box
+function lamp(B,S,x,z){
+  B(.44,.5,.44,M.travertine,x,CURB+.25,z);
+  const sh=new THREE.CylinderGeometry(.07,.11,3.6,4,1); sh.rotateY(PI/4); sh.translate(x,CURB+.5+1.8,z); B.geo(sh,M.bronze);
+  for(const y of [.62,1.5,4.05]) B(.22,.07,.22,M.bronze,x,CURB+y,z);
+  const ly=CURB+4.5; B(.2,.5,.2,M.glow,x,ly,z);
+  for(let k=0;k<4;k++){ const a=k*PI/2, pn=new THREE.Mesh(panelGeo(.4,.6,.55),M.mashrabiya); pn.position.set(x+Math.sin(a)*.2,ly,z+Math.cos(a)*.2); pn.rotation.y=a; S.add(pn); }
+  for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1]]) B(.045,.64,.045,M.bronze,x+sx*.2,ly,z+sz*.2);
+  B(.5,.05,.5,M.bronze,x,ly-.33,z);
+  const cap=new THREE.ConeGeometry(.37,.32,4); cap.rotateY(PI/4); cap.translate(x,ly+.47,z); B.geo(cap,M.bronze);
+  const fin=new THREE.SphereGeometry(.05,8,6); fin.translate(x,ly+.68,z); B.geo(fin,M.bronze);
 }
-function lampPost(x,z){
-  const g=new THREE.Group(); g.position.set(x,CURB,z);
-  const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.09,4.2,10),M.darkMetal); pole.position.y=2.1; pole.castShadow=true;
-  const head=new THREE.Mesh(new THREE.CylinderGeometry(.22,.16,.5,8),M.darkMetal); head.position.y=4.4;
-  const glow=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.32,8),M.lamp); glow.position.y=4.36;
-  g.add(pole,head,glow); return g;
+function bollardLight(B,x,z){ B(.2,.9,.2,M.bronze,x,CURB+.45,z); B(.05,.55,.215,M.glow,x,CURB+.5,z); B(.215,.55,.05,M.glow,x,CURB+.5,z); }
+function floorLantern(B,S,x,z,s=1){
+  B(.5*s,.06,.5*s,M.bronze,x,CURB+.03,z); B(.5*s,.06,.5*s,M.bronze,x,CURB+1.17*s,z); B(.24*s,.9*s,.24*s,M.glow,x,CURB+.6*s,z);
+  for(let k=0;k<4;k++){ const a=k*PI/2, pn=new THREE.Mesh(panelGeo(.46*s,1.1*s,.55),M.mashrabiya); pn.position.set(x+Math.sin(a)*.23*s,CURB+.6*s,z+Math.cos(a)*.23*s); pn.rotation.y=a; S.add(pn); }
 }
-function bench(x,z,rot=0){
-  const g=new THREE.Group(); g.position.set(x,CURB,z); g.rotation.y=rot;
-  g.add(box(.5,.42,.5,M.travertine,-.95,.21,0), box(.5,.42,.5,M.travertine,.95,.21,0));
-  for(let i=0;i<4;i++) g.add(box(2.6,.06,.11,M.woodOut,0,.45,-.2+i*.135));
-  return g;
+function bench(B,S,x,z,ry=0){
+  const c=Math.cos(ry), s=Math.sin(ry), P=(dx,dz)=>[x+dx*c+dz*s,z-dx*s+dz*c];
+  for(const sx of [-1,1]){ const [px,pz]=P(sx*1.05,0); const pn=new THREE.Mesh(panelGeo(.55,.42,.5),M.mashrabiya); pn.position.set(px,CURB+.21,pz); pn.rotation.y=ry+PI/2; S.add(pn);
+    B(.05,.42,.05,M.bronze,...P(sx*1.05,.27).flatMap((v,i)=>i?[CURB+.21,v]:[v]),ry); B(.05,.42,.05,M.bronze,...P(sx*1.05,-.27).flatMap((v,i)=>i?[CURB+.21,v]:[v]),ry); }
+  let p=P(0,0); B(2.3,.1,.62,M.travertine,p[0],CURB+.47,p[1],ry); B(2.1,.12,.52,M.cushionOut,p[0],CURB+.58,p[1],ry);
+  p=P(-.75,-.12); const bol=new THREE.CylinderGeometry(.11,.11,.5,14); bol.rotateZ(PI/2); bol.rotateY(ry); bol.translate(p[0],CURB+.74,p[1]); B.geo(bol,M.cushionOut);
 }
+let _pot=null;
+function potGeo(){ return _pot||(_pot=new THREE.LatheGeometry([[0,0],[.3,0],[.42,.14],[.5,.45],[.52,.75],[.46,1],[.49,1.05],[.43,1.06],[.41,1]].map(v=>new THREE.Vector2(v[0],v[1])),28)); }
+function bigPot(B,x,z,s=1){ const g=potGeo().clone(); g.scale(s,s,s); g.translate(x,CURB,z); B.geo(g,M.bronzePot);
+  const so=new THREE.CircleGeometry(.41*s,20); so.rotateX(-PI/2); so.translate(x,CURB+.98*s,z); B.geo(so,M.mulch); return CURB+.98*s; }
+function pool(B,S,x,z,w,d,bowl=false){
+  B(w+.5,.4,.25,M.travertine,x,CURB+.2,z+d/2+.12); B(w+.5,.4,.25,M.travertine,x,CURB+.2,z-d/2-.12);
+  B(.25,.4,d,M.travertine,x+w/2+.12,CURB+.2,z); B(.25,.4,d,M.travertine,x-w/2-.12,CURB+.2,z);
+  B(w,.05,d,M.poolTile,x,CURB+.02,z);
+  const wt=new THREE.Mesh(new THREE.PlaneGeometry(w,d),M.pool); wt.rotation.x=-PI/2; wt.position.set(x,CURB+.3,z); wt.receiveShadow=true; S.add(wt);
+  if(bowl){ const bg=new THREE.LatheGeometry([[0,0],[.22,0],[.22,.38],[.55,.44],[.95,.62],[1.06,.78],[1.0,.8],[.9,.68],[0,.64]].map(v=>new THREE.Vector2(v[0],v[1])),36);
+    bg.translate(x,CURB+.25,z); B.geo(bg,M.ceramic);
+    const wd=new THREE.Mesh(new THREE.CircleGeometry(.9,32),M.pool); wd.rotation.x=-PI/2; wd.position.set(x,CURB+.97,z); S.add(wd);
+    const jet=new THREE.Mesh(new THREE.CylinderGeometry(.015,.04,.5,8),M.jet); jet.position.set(x,CURB+1.2,z); S.add(jet); }
+}
+function armchair(B,x,z,ry){
+  const c=Math.cos(ry), s=Math.sin(ry), P=(dx,dz)=>[x+dx*c+dz*s,z-dx*s+dz*c];
+  let p=P(0,0); B(.85,.36,.8,M.rattan,p[0],CURB+.2,p[1],ry); B(.72,.14,.66,M.cushionOut,p[0],CURB+.45,p[1],ry);
+  p=P(0,-.34); B(.85,.5,.14,M.rattan,p[0],CURB+.62,p[1],ry); p=P(0,-.25); B(.7,.38,.12,M.cushionOut,p[0],CURB+.72,p[1],ry);
+  for(const sx of [-1,1]){ p=P(sx*.38,0); B(.12,.3,.8,M.rattan,p[0],CURB+.53,p[1],ry); }
+}
+function sideTable(B,S,x,z){ const t=new THREE.Mesh(new THREE.CylinderGeometry(.34,.34,.5,20,1,true),M.mashrabiya);
+  { const uv=t.geometry.attributes.uv; for(let i=0;i<uv.count;i++) uv.setXY(i,uv.getX(i)*2.1/.5,uv.getY(i)*.5/.5); }
+  t.position.set(x,CURB+.25,z); S.add(t); const top=new THREE.CylinderGeometry(.36,.36,.04,24); top.translate(x,CURB+.52,z); B.geo(top,M.bronze); }
 
 /* ---------------- cars (generic, no make or badge) ---------------- */
 const PAINTS=['#f2f2f0','#111214','#9ea3a8','#3a3f45','#d8c7a8','#1c2c4a','#5a1a22','#ffffff','#2f3a33'];
@@ -472,24 +651,24 @@ export class Street {
     const S=this.scene=new THREE.Scene();
     this.camera=new THREE.PerspectiveCamera(55,1,.1,1400); this.camera.rotation.order='YXZ';
     makeMaterials();
-    this.colliders=[]; this.cars=[]; this.npcs=[]; this.keys={}; this.joy={x:0,y:0};
-    this.yaw=0; this.pitch=.18; this.dist=6.2; this.t=0;
+    this.colliders=[]; this.plants=[]; this.cars=[]; this.npcs=[]; this.keys={}; this.joy={x:0,y:0};
+    this.yaw=.3; this.pitch=.16; this.dist=7.5; this.t=0;
 
     // sun: shadows follow the player
-    this.sun=new THREE.DirectionalLight('#fff0d8',4.6); this.sun.castShadow=true;
+    this.sun=new THREE.DirectionalLight('#ffcf98',5.2); this.sun.castShadow=true;
     const mobile=matchMedia('(pointer:coarse)').matches; this.mobile=mobile;
     const sz=hi?4096:1024, ext=hi?34:30; this.sun.shadow.mapSize.set(sz,sz);
     const sc=this.sun.shadow.camera; sc.left=-ext; sc.right=ext; sc.top=ext; sc.bottom=-ext; sc.near=1; sc.far=220;
     this.sun.shadow.bias=-.0004; this.sun.shadow.normalBias=.03;
     S.add(this.sun,this.sun.target);
-    this.sunDir=new THREE.Vector3(.72,.62,.42).normalize();
-    S.fog=new THREE.Fog('#dfe6ea',140,560);
+    this.sunDir=new THREE.Vector3(.62,.44,.66).normalize();     // late-afternoon sun: low, warm, long shadows
+    S.fog=new THREE.Fog('#eadfcf',150,600);
 
     this.buildGround(); this.buildShops(); this.buildCanal(); this.buildSkyline(); this.buildProps(); this.buildCars(); this.buildPeople();
     // only the people get an ink outline
     // sky light is a soft fill; the sun does the modelling (shadows). Metal and glass keep full reflections.
     S.traverse(o=>{ if(!o.isMesh) return; for(const m of [].concat(o.material)){ if(m.isMeshToonMaterial) continue;
-      m.userData.outlineParameters={visible:false}; if(m.userData.env===undefined){ m.userData.env=1; m.envMapIntensity=m===M.glass?.55:(m.transparent||m.metalness>.5)?1.1:.45; }
+      m.userData.outlineParameters={visible:false}; if(m.userData.env===undefined){ m.userData.env=1; m.envMapIntensity=m===M.glass?.55:(m.transparent||m.metalness>.5)?1.0:.36; }
       if(m.transparent||m.alphaTest>0||m.isShaderMaterial) o.userData.noAO=true; } });
     this.outline=makeOutline(renderer);
     if(hi){ const size=renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -499,7 +678,7 @@ export class Street {
       this.ao.blendIntensity=.85; this.composer.addPass(this.ao); this.composer.addPass(new OutputPass()); }
   }
   async loadSky(){
-    const hdr=await new RGBELoader(manager).loadAsync('textures/sky.hdr');
+    const hdr=await new RGBELoader(manager).loadAsync('textures/sky_afternoon.hdr');
     hdr.mapping=THREE.EquirectangularReflectionMapping;
     const pm=new THREE.PMREMGenerator(this.r); this.scene.environment=pm.fromEquirectangular(hdr).texture; pm.dispose();
     this.scene.background=hdr; this.scene.backgroundIntensity=1;
@@ -521,29 +700,78 @@ export class Street {
     for(const z of [ROAD0+.45,ROAD1-.45]){ const l=plane(2*XMAX+120,.15,paint,0,.011,z); S.add(l); }
     for(let i=0;i<8;i++){ const z=ROAD0+.6+i*.95; S.add(plane(3.2,.5,paint,0,.013,z)); }      // crossing in front of the bridge
   }
+  // a plant from the CC0 plant kit (placed once the kit has loaded)
+  plant(kind,x,y,z,s=1){ this.plants.push({kind,x,y,z,s,r:R(0,TAU),v:rnd()}); }
+  // raised travertine bed with soil, planted with a natural mix
+  bed(B,x,z,w,d,{palm=0,olive=0,flowers=.5,rock=true,hedge=false,density=1}={}){
+    const y=CURB+.32;
+    B(w,.32,.18,M.travertine,x,CURB+.16,z+d/2-.09); B(w,.32,.18,M.travertine,x,CURB+.16,z-d/2+.09);
+    B(.18,.32,d-.36,M.travertine,x+w/2-.09,CURB+.16,z); B(.18,.32,d-.36,M.travertine,x-w/2+.09,CURB+.16,z);
+    B(w-.3,.3,d-.3,M.mulch,x,CURB+.14,z);
+    this.colliders.push({x,z,hw:w/2,hd:d/2});
+    for(let i=0;i<palm;i++){ const px=x+(palm>1?(i-(palm-1)/2)*w/palm:R(-.2,.2)), pz=z+R(-.2,.2); const p=makePalm(R(6,10.5)); p.position.set(px,y,pz); this.scene.add(p); }
+    for(let i=0;i<olive;i++) this.plant('olive',x+(olive>1?(i-(olive-1)/2)*w/olive:R(-.3,.3)),y,z+R(-.3,.3),R(1.5,2.1));
+    const n=Math.round(w*d*.9*density);
+    for(let i=0;i<n;i++){ const px=x+R(-w/2+.45,w/2-.45), pz=z+R(-d/2+.45,d/2-.45), u=rnd();
+      if(u<flowers*.55) this.plant('flowers',px,y,pz,R(1.6,2.6));
+      else if(u<flowers*.55+.2) this.plant('low',px,y,pz,R(1.1,1.7));
+      else this.plant('bush',px,y,pz,R(.45,.85)); }
+    if(hedge) this.plant('hedge',x,y,z+d/2-.5,R(.9,1.1));
+    if(rock&&w*d>5) this.plant('rock',x+R(-w/4,w/4),y-.05,z+R(-d/4,d/4),R(.3,.55));
+  }
   buildShops(){
-    // real shops from the planet first (each picks its own facade); any free frontage shows an example shop
-    const FNS=SHOPS.map(s=>s[1]);
+    const S=this.scene, B=batch(S), FNS=SHOPS.map(s=>s[1]), F=FACADE;
     SHOPS.forEach(([demo],i)=>{
       const real=this.stores[i]||null, f=real?.store?.facade, fi=Number.isInteger(f)&&f>=0&&f<5?f:i;
       const name=real?String(real.store.name||'محل').slice(0,40):demo;
-      const g=FNS[fi](name), x0=-48+i*24; g.position.set(x0,0,FACADE); this.scene.add(g);
+      const g=FNS[fi](name), x0=-56+i*28; g.position.set(x0,CURB,F); S.add(g);
       if(real) windowDisplay(g,real.store);
       this.slots.push({x0,real,name});
-      if(g.userData.arc){ const {Rr,zc,a}=g.userData.arc; for(let t=-a;t<=a+1e-6;t+=a/14) this.colliders.push({x:x0+Rr*Math.sin(t),z:FACADE+zc+Rr*Math.cos(t),r:.75}); }
+      const ft=g.userData.foot; if(ft) this.colliders.push({x:x0,z:F+ft.front/2,hw:ft.hw,hd:Math.max(.3,ft.front/2)+.3});
+      if(g.userData.roof){ const r=g.userData.roof; for(let k=0;k<26;k++) this.plant(rnd()<.35?'flowers':'bush',x0+R(-r.w/2,r.w/2),CURB+r.y,F-R(.8,r.d*.4),rnd()<.35?R(1.6,2.4):R(.5,.8)); }
+      this.forecourt(B,fi,x0);
     });
-    // narrow stone links between the shops so the street reads as one frontage
-    for(let i=0;i<6;i++){ const x=-60+i*24; this.scene.add(box(4,7,14,M.sandstone,x,3.5,FACADE-7.2)); }
-    // taller hotel/residential blocks behind the shops
-    for(let i=0;i<6;i++){ const x=-62+i*25, h=R(24,40);
-      const b=box(20,h,14,i%2?M.limestone:M.sandstone,x,h/2,FACADE-36); this.scene.add(b);
-      for(let f=0;f<Math.floor(h/3.6)-1;f++) this.scene.add(box(20.1,1.5,14.1,M.tint,x,5+f*3.6,FACADE-36,{cast:false,uv:false})); }
+    // gardens between and beside the shops
+    for(let i=0;i<=5;i++){ const x=-70+i*28;
+      this.bed(B,x,F+4.2,5.2,7.6,{palm:2,olive:1,flowers:.6});
+      const p=makePalm(R(7,10)); p.position.set(x+R(-1.5,1.5),CURB,F-3); S.add(p); this.plant('olive',x+R(-2,2),CURB,F-6,R(1.6,2.2)); }
+    // a second row of palms and olives behind the shops (an oasis, not towers)
+    for(let x=-78;x<=78;x+=R(7,11)){ const p=makePalm(R(8,12)); p.position.set(x,CURB,F-R(16,26)); S.add(p); this.plant('olive',x+R(-3,3),CURB,F-R(15,22),R(1.8,2.6)); }
+    B.done();
+  }
+  // landscaped forecourt in front of each shop, after the reference images
+  forecourt(B,kind,x0){
+    const S=this.scene, F=FACADE, C=this.colliders;
+    const potPlant=(x,z,k='olive',s=1)=>{ const y=bigPot(B,x,z,s); this.plant(k,x,y,z,k==='olive'?R(.75,.95)*s:R(.6,.8)*s); C.push({x,z,r:.6*s}); };
+    if(kind===0){                                            // perfume: fountain bowl, lounge, lanterns, pots
+      pool(B,S,x0+4.2,F+4.4,3.6,2.4,true); C.push({x:x0+4.2,z:F+4.4,hw:2,hd:1.4});
+      potPlant(x0-2.1,F+1.3,'bush',1); potPlant(x0+2.1,F+1.3,'bush',1);
+      floorLantern(B,S,x0-1.5,F+.9); floorLantern(B,S,x0+1.5,F+.9);
+      armchair(B,x0-6.6,F+3.6,.5); armchair(B,x0-4.4,F+3.6,-.5); sideTable(B,S,x0-5.5,F+3.9); C.push({x:x0-5.5,z:F+3.7,hw:1.8,hd:.7});
+      this.bed(B,x0+7.4,F+8.2,4,2.4,{flowers:.8});
+    }else if(kind===1){                                      // fashion: steps, reflecting pool, olives in bronze pots
+      pool(B,S,x0,F+4.6,6.4,2.2); C.push({x:x0,z:F+4.6,hw:3.5,hd:1.3});
+      potPlant(x0-4.2,F+2.3,'olive',1.15); potPlant(x0+4.2,F+2.3,'olive',1.15);
+      for(const sx of [-1,1]){ bollardLight(B,x0+sx*6.4,F+7.5); bollardLight(B,x0+sx*1.9,F+7.5); this.bed(B,x0+sx*7.6,F+3.4,3.6,3.2,{flowers:.7}); }
+    }else if(kind===2){                                      // furniture: pool with an olive bed and boulder
+      pool(B,S,x0+7.6,F+3.4,5,2.4); C.push({x:x0+7.6,z:F+3.4,hw:2.7,hd:1.4});
+      this.bed(B,x0-7.6,F+4.4,5.6,4.2,{olive:1,flowers:.5});
+      potPlant(x0-2.7,F+2.3,'olive',.9); potPlant(x0+2.7,F+2.3,'olive',.9);
+      for(const x of [-4,4]) bollardLight(B,x0+x,F+7.8);
+    }else if(kind===3){                                      // electronics: screened benches, palms, bollards
+      bench(B,S,x0-5.2,F+3,0); bench(B,S,x0+5.2,F+3,0); C.push({x:x0-5.2,z:F+3,hw:1.2,hd:.4},{x:x0+5.2,z:F+3,hw:1.2,hd:.4});
+      for(const sx of [-1,1]){ this.bed(B,x0+sx*8.6,F+3.4,3,3.2,{palm:1,flowers:.6}); bollardLight(B,x0+sx*2.6,F+1.3); }
+      potPlant(x0-1.9,F+1.4,'olive',.8); potPlant(x0+1.9,F+1.4,'olive',.8);
+    }else{                                                   // jewellery: flowering beds, palms, floor lanterns
+      for(const sx of [-1,1]){ this.bed(B,x0+sx*5.8,F+3.6,3.4,3.6,{palm:1,flowers:.9,hedge:true}); floorLantern(B,S,x0+sx*1.7,F+.9,.9); }
+      potPlant(x0,F+5.6,'bush',1.2);
+    }
   }
   buildCanal(){
     const S=this.scene, L=2*XMAX+120;
     if(this.hi){   // real mirror reflections of the street, the palms and the sky, with sun glints
       const w=new Water(new THREE.PlaneGeometry(L,CANAL1-CANAL0),{textureWidth:1024,textureHeight:1024,waterNormals:M.water.normalMap,
-        sunDirection:this.sunDir.clone(),sunColor:0xfff0d8,waterColor:0x0a3439,distortionScale:1.6,fog:true});
+        sunDirection:this.sunDir.clone(),sunColor:0xffd6a6,waterColor:0x0f6a6e,distortionScale:1.6,fog:true});
       w.rotation.x=-PI/2; w.position.set(0,WATER,(CANAL0+CANAL1)/2); w.material.uniforms.size.value=3.2; w.receiveShadow=true;
       S.add(w); this.mirror=w;
     }else{ const water=plane(L,CANAL1-CANAL0,M.water,0,WATER,(CANAL0+CANAL1)/2); water.receiveShadow=true; S.add(water); }
@@ -583,40 +811,64 @@ export class Street {
       S.add(box(w,h,12,i%2?M.travertine:M.limestone,x,h/2,SOUTH1+10));
       S.add(box(w-2,3,.3,M.tint,x,h*.55,SOUTH1+3.9,{cast:false,uv:false}));
       if(i%2) S.add(box(w,.4,2.2,M.bronze,x,3.6,SOUTH1+3.3)); }
-    for(let i=0;i<14;i++){ const x=R(-260,260), z=i%2?R(90,220):R(-190,-90), h=R(60,190), w=R(16,30);
-      const t=box(w,h,w,M.tint,x,h/2,z,{cast:false,uv:false}); S.add(t);
-      S.add(box(w+.6,h*.18,w+.6,M.limestone,x,h*.09,z,{cast:false})); }
+    // desert hills on the horizon, softened by the haze
+    for(const [z0,z1] of [[-90,-700],[110,700]]){
+      const g=new THREE.PlaneGeometry(2400,Math.abs(z1-z0),160,40); g.rotateX(-PI/2); g.translate(0,0,(z0+z1)/2);
+      const p=g.attributes.position;
+      for(let i=0;i<p.count;i++){ const x=p.getX(i), z=p.getZ(i), f=clamp((Math.abs(z)-Math.abs(z0))/160,0,1);
+        const hgt=(Math.sin(x*.011+z*.004)*.5+.5)*38+(Math.sin(x*.031-z*.013)*.5+.5)*16+Math.sin(x*.09+z*.05)*3;
+        p.setY(i,-.2+f*f*hgt); }
+      g.computeVertexNormals(); const m=new THREE.Mesh(g,M.dunes); m.receiveShadow=true; S.add(m); }
   }
   buildProps(){
-    const S=this.scene;
+    const S=this.scene, B=batch(S);
+    // lantern posts on both kerbs
+    for(let x=-XMAX+4;x<=XMAX;x+=14){ lamp(B,S,x,ROAD0-.6); this.colliders.push({x,z:ROAD0-.6,r:.35}); lamp(B,S,x+7,ROAD1+.6); this.colliders.push({x:x+7,z:ROAD1+.6,r:.35}); }
+    // promenade: planted beds with palms, mashrabiya benches between
     for(let x=-XMAX+4;x<=XMAX;x+=11){
-      if(Math.abs(x)>4){ S.add(planter(x,3.4)); this.colliders.push({x,z:3.4,r:1.4}); }
-      S.add(planter(x+5.5,18.4)); this.colliders.push({x:x+5.5,z:18.4,r:1.4});
-      S.add(lampPost(x+5.5,ROAD1+.6)); this.colliders.push({x:x+5.5,z:ROAD1+.6,r:.3});
-      S.add(lampPost(x,ROAD0-.6)); this.colliders.push({x,z:ROAD0-.6,r:.3});
+      if(Math.abs(x)>4) this.bed(B,x,3.5,2.6,2.6,{palm:1,flowers:.6,rock:false,density:.8});
+      this.bed(B,x+5.5,19,2.8,2.8,{palm:1,flowers:.5,rock:false,density:.8});
     }
-    for(let x=-XMAX+9.5;x<XMAX;x+=22){ S.add(bench(x,4.4)); this.colliders.push({x,z:4.4,r:1.3});
-      const bin=new THREE.Mesh(new THREE.CylinderGeometry(.26,.24,.85,16),M.bronze); bin.position.set(x+1.9,CURB+.43,4.5); bin.castShadow=true; S.add(bin);
-      const lid=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.05,16),M.darkMetal); lid.position.set(x+1.9,CURB+.88,4.5); S.add(lid);
-      this.colliders.push({x:x+1.9,z:4.5,r:.4}); }
-    // steel bollards along the shop-side kerb
-    const bol=new THREE.CylinderGeometry(.09,.1,.8,14); bol.translate(0,.4,0);
-    const steel=new THREE.MeshStandardMaterial({color:'#b9bec2',metalness:1,roughness:.3});
-    const bx=[]; for(let x=-XMAX+2;x<=XMAX;x+=3.2) if(Math.abs(x)>2.4&&Math.abs(((x+XMAX)%11)-5.5)>1) bx.push(x);
-    const bols=new THREE.InstancedMesh(bol,steel,bx.length), o=new THREE.Object3D();
-    bx.forEach((x,i)=>{ o.position.set(x,CURB,ROAD0-.35); o.updateMatrix(); bols.setMatrixAt(i,o.matrix); }); bols.castShadow=bols.receiveShadow=true; S.add(bols);
+    for(let x=-XMAX+9.5;x<XMAX;x+=22){ bench(B,S,x,4.5,0); this.colliders.push({x,z:4.5,hw:1.2,hd:.4}); }
+    // bronze bollards with light slits along the shop-side kerb
+    for(let x=-XMAX+2;x<=XMAX;x+=3.5) if(Math.abs(x)>2.6&&Math.abs(((x+XMAX-4)%14+14)%14)>1) bollardLight(B,x,ROAD0-.35);
     // generic pedestrian signals at the crossing
     for(const [x,z,ry] of [[-2.4,ROAD0-.5,0],[2.4,ROAD1+.5,PI]]){
       const g=new THREE.Group(); g.position.set(x,CURB,z); g.rotation.y=ry;
-      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,3,10),M.darkMetal); pole.position.y=1.5; pole.castShadow=true;
-      const head=box(.32,.7,.26,M.darkMetal,0,2.75,.18,{uv:false});
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.06,.07,3,10),M.bronze); pole.position.y=1.5; pole.castShadow=true;
+      const head=box(.32,.7,.26,M.bronze,0,2.75,.18,{uv:false});
       const red=new THREE.Mesh(new THREE.CircleGeometry(.09,16),new THREE.MeshStandardMaterial({color:'#300',emissive:'#ff2a1a',emissiveIntensity:1.2}));
       red.position.set(0,2.9,.315); const grn=new THREE.Mesh(new THREE.CircleGeometry(.09,16),new THREE.MeshStandardMaterial({color:'#032',emissive:'#1aff8a',emissiveIntensity:.15}));
       grn.position.set(0,2.6,.315); g.add(pole,head,red,grn); S.add(g); this.colliders.push({x,z,r:.3});
     }
-    // drain covers on the road
     const dc=new THREE.CircleGeometry(.35,20); dc.rotateX(-PI/2);
     for(let x=-XMAX+8;x<XMAX;x+=19){ const d=new THREE.Mesh(dc,M.darkMetal); d.position.set(x,.008,ROAD0+1.2+((x|0)%2?5.6:0)); d.receiveShadow=true; S.add(d); }
+    B.done();
+  }
+  // CC0 plant kit (Poly Haven): each placement picks a variant and gets its own size and turn, drawn as instances
+  async loadPlants(){
+    const { GLTFLoader }=await import('three/addons/loaders/GLTFLoader.js'), { DRACOLoader }=await import('three/addons/loaders/DRACOLoader.js');
+    const dl=new DRACOLoader().setDecoderPath('https://unpkg.com/three@0.160.0/examples/jsm/libs/draco/gltf/');
+    const gltf=await new GLTFLoader(manager).setDRACOLoader(dl).loadAsync('models/plants.glb');
+    const root=gltf.scene; root.updateMatrixWorld(true);
+    const V={}; root.traverse(o=>{ if(!o.isMesh) return; let t=o; while(t.parent&&t.parent!==root) t=t.parent; (V[t.name]||(V[t.name]=[])).push(o); });
+    const KIND={olive:/searsia_lucida_[abcd]/,bush:/shrub_02|searsia_lucida_e/,flowers:/shrub_03/,hedge:/shrub_01/,low:/shrub_04/,rock:/boulder/};
+    const names=Object.keys(V), pick={};
+    for(const k in KIND) pick[k]=names.filter(n=>KIND[k].test(n));
+    const groups={};
+    for(const p of this.plants){ const list=pick[p.kind]; if(!list?.length) continue; const n=list[Math.floor(p.v*list.length)]; (groups[n]||(groups[n]=[])).push(p); }
+    const tmp=new THREE.Matrix4(), q=new THREE.Quaternion(), up=new THREE.Vector3(0,1,0);
+    for(const n in groups){
+      const meshes=V[n], bb=new THREE.Box3(); meshes.forEach(m=>bb.expandByObject(m));
+      const c=bb.getCenter(new THREE.Vector3()), off=new THREE.Matrix4().makeTranslation(-c.x,-bb.min.y,-c.z);
+      for(const m of meshes){
+        const local=off.clone().multiply(m.matrixWorld), list=groups[n];
+        for(const mat of [].concat(m.material)){ mat.envMapIntensity=.5; mat.userData.outlineParameters={visible:false}; if(mat.transparent&&mat.alphaTest>0) mat.transparent=false; }
+        const im=new THREE.InstancedMesh(m.geometry,m.material,list.length);
+        list.forEach((p,i)=>{ q.setFromAxisAngle(up,p.r); tmp.compose(new THREE.Vector3(p.x,p.y,p.z),q,new THREE.Vector3(p.s,p.s*R(.9,1.1),p.s)); im.setMatrixAt(i,tmp.clone().multiply(local)); });
+        im.castShadow=true; im.receiveShadow=true; im.userData.noAO=true; this.scene.add(im);
+      }
+    }
   }
   buildCars(){
     for(let i=0;i<10;i++){
@@ -628,9 +880,9 @@ export class Street {
   }
   buildPeople(){
     let prof=null; try{ prof=JSON.parse(localStorage.getItem('alam-profile-v1')||'null'); }catch(e){}
-    this.me=buildAvatar(prof?.avatar||defaultAvatar('m')); this.me.position.set(-12,CURB,3.6+1.4); this.me.rotation.y=PI;
+    this.me=buildAvatar(prof?.avatar||defaultAvatar('m')); this.me.position.set(-14,CURB,-8.8); this.me.rotation.y=PI;
     this.me.traverse(o=>{ if(o.isMesh) o.castShadow=true; }); this.scene.add(this.me);
-    const paths=[[-9.8,1],[-10.9,-1],[5.3,1],[21.4,-1],[23,1]];
+    const paths=[[-8.6,1],[-9.5,-1],[5.4,1],[21.4,-1],[23,1]];
     for(let i=0;i<12;i++){
       const a=buildAvatar(randomAvatar(rnd)), p=paths[i%paths.length];
       a.position.set(R(-XMAX+6,XMAX-6),CURB,p[0]+R(-.4,.4)); a.userData.dir=p[1]*(i%3===2?-1:1); a.userData.sp=R(1.1,1.5); a.userData.ph=R(0,TAU);
@@ -642,10 +894,11 @@ export class Street {
     if(this.composer){ this.composer.setPixelRatio(this.r.getPixelRatio()); this.composer.setSize(w,h); } }
   // the shop frontage you are standing at (on the shop-side pavement)
   nearSlot(){ const p=this.me.position; if(p.z>ROAD0-.2) return null;
-    return this.slots.find(s=>Math.abs(p.x-s.x0)<10.5)||null; }
+    return this.slots.find(s=>Math.abs(p.x-s.x0)<14)||null; }
   blocked(x,z){
     if(groundY(x,z)===null) return true;
-    for(const c of this.colliders){ const dx=x-c.x, dz=z-c.z; if(dx*dx+dz*dz<c.r*c.r) return true; }
+    for(const c of this.colliders){ const dx=x-c.x, dz=z-c.z;
+      if(c.r!==undefined){ if(dx*dx+dz*dz<c.r*c.r) return true; } else if(Math.abs(dx)<c.hw+.3&&Math.abs(dz)<c.hd+.3) return true; }
     return false;
   }
   update(dt){
