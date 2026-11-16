@@ -171,6 +171,7 @@ function dashboard(){
         <button data-m="request">نبني لك تصميم خاص</button>
       </div>
       <div id="bBody" style="margin-top:12px"></div>
+      <div id="fBody" style="margin-top:16px"></div>
     </div>
 
     <div class="card"><h3>🔗 رابط محلك</h3>
@@ -246,7 +247,15 @@ function summary(){
   return ok;
 }
 
+const FACADE_NAMES=['أقواس ومشربية','شرائح برونز منحنية','واجهة زجاج بإطار حجر','حجر بفتحة دائرية الزوايا','مشربية ذهبية كاملة'];
+function drawFacade(){
+  const f=$('#fBody'); if(!f) return; const cur=Number.isInteger(store.facade)?store.facade:-1;
+  f.innerHTML=`<div style="font-size:14px;font-weight:700;margin-bottom:6px">واجهة محلك في الشارع الواقعي <a href="street.html" style="font-weight:500;font-size:12px">(شوف الشارع)</a></div>
+    <div class="seg">${FACADE_NAMES.map((n,i)=>`<button data-f="${i}" class="${i===cur?'on':''}">${n}</button>`).join('')}</div>`;
+  f.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{ store.facade=+b.dataset.f; drawFacade(); mark(); });
+}
 function drawBuilding(){
+  drawFacade();
   const m=store.building.mode||'style';
   document.querySelectorAll('#bMode button').forEach(b=>{ b.classList.toggle('on',b.dataset.m===m); b.onclick=()=>{ store.building.mode=b.dataset.m; drawBuilding(); mark(); }; });
   const body=$('#bBody'), dia=((store._calc?.R||calcSpace(store.lines).R)*2).toFixed(1);

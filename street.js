@@ -11,6 +11,7 @@ import { Pass } from 'three/addons/postprocessing/Pass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { Water } from 'three/addons/objects/Water.js';
+import { mediaOk } from './backend.js?v=6';
 
 // the scene (with the anime ink outline on people) rendered into the composer's buffer
 class OutlineScenePass extends Pass {
@@ -225,6 +226,7 @@ function shopArches(name){
   g.add(signPlate(name,8,1.5,0,9.2,.02,'#cfa762'));
   shell(g,w,h,d,M.travertine); g.add(interior(w-1.2,h-.8,d-1.6,M.marbleIn));
   displays(g,w-2,d,M.marbleIn,M.gold,6,1.0);
+  g.userData.spots=[-6.3,0,6.3]; g.userData.dispZ=-1.4;
   return g;
 }
 // 2. curved glass front wrapped in vertical bronze louvers (fashion)
@@ -297,6 +299,7 @@ function shopScreen(name){
   for(let i=0;i<=5;i++) g.add(box(.14,4,.18,M.bronze,-(w-1.2)/2+i*(w-1.2)/5,2.4,-1.45,{uv:false}));
   g.add(box(w-1.2,.18,2.4,M.bronze,0,4.45,-.3));                                                    // bronze canopy
   g.add(signPlate(name,6.5,1.1,0,4.95,.95,'#d6b26c'));
+  g.userData.dispZ=-2.3;
   shell(g,w,h,d,M.travertine); g.add(interior(w-1.2,4.2,d-2.4,M.marbleIn));
   for(let i=0;i<5;i++){ const x=-7+i*3.5; g.add(box(1.6,1,.7,M.marbleIn,x,.5,-3.5,{cast:false}));
     const vit=new THREE.Mesh(new THREE.BoxGeometry(1.5,.45,.6),M.glass); vit.position.set(x,1.23,-3.5); g.add(vit);
@@ -305,6 +308,38 @@ function shopScreen(name){
 }
 const SHOPS=[['دار العطور',shopArches],['أزياء الرمال',shopLouvers],['أثاث النخلة',shopShowroom],
              ['إلكترونيات المستقبل',shopRounded],['مجوهرات اللؤلؤ',shopScreen]];
+export const FACADE_NAMES=['أقواس ومشربية','شرائح برونز منحنية','واجهة زجاج بإطار حجر','حجر بفتحة دائرية الزوايا','مشربية ذهبية كاملة'];
+
+/* ---------------- a real shop's products in its window ---------------- */
+const photoLoader=new THREE.TextureLoader(); photoLoader.setCrossOrigin('anonymous');
+function productLabel(l){
+  return canvasTex(256,256,(x,w,h)=>{
+    const col=/^#[0-9a-f]{6}$/i.test(l.color)?l.color:'#d9cbb3'; x.fillStyle=col; x.fillRect(0,0,w,h);
+    x.fillStyle='rgba(255,255,255,.9)'; x.fillRect(16,86,w-32,84);
+    x.fillStyle='#2a2118'; x.textAlign='center'; x.textBaseline='middle'; x.direction='rtl';
+    const t=String(l.name||'').slice(0,30); let sz=40; do{ x.font=`800 ${sz}px ${FONT}`; sz-=2; }while(x.measureText(t).width>w-44&&sz>12);
+    x.fillText(t,w/2,128);
+  });
+}
+function priceTag(price){
+  return canvasTex(256,96,(x,w,h)=>{ x.fillStyle='#fbf7ef'; x.fillRect(0,0,w,h); x.fillStyle='#2a2118'; x.textAlign='center'; x.textBaseline='middle';
+    x.font=`800 54px ${FONT}`; x.fillText('$'+(+price).toLocaleString('en-US',{maximumFractionDigits:2}),w/2,h/2+3); });
+}
+function windowDisplay(g,store){
+  const spots=g.userData.spots||[-6,-3,0,3,6], z=g.userData.dispZ??-1.7;
+  const lines=(Array.isArray(store.lines)?store.lines:[]).filter(l=>l&&l.name).slice(0,spots.length);
+  const used=lines.length<spots.length?spots.slice(Math.floor((spots.length-lines.length)/2)):spots;
+  lines.forEach((l,i)=>{
+    const x=used[i];
+    g.add(box(1.1,.95,.7,M.marbleIn,x,.475,z,{cast:false}));
+    const map=mediaOk(l.img)?photoLoader.load(l.img,t=>{t.colorSpace=THREE.SRGBColorSpace;}):productLabel(l);
+    const pm=new THREE.MeshStandardMaterial({map,emissive:'#fff',emissiveMap:map,emissiveIntensity:.35,roughness:.6});
+    const ph=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3),pm); ph.position.set(x,1.8,z); g.add(ph);
+    g.add(box(1.42,1.42,.04,M.gold,x,1.8,z-.03,{cast:false,uv:false}));
+    if(+l.price>0){ const tg=new THREE.Mesh(new THREE.PlaneGeometry(.5,.19),new THREE.MeshStandardMaterial({map:priceTag(l.price),emissive:'#fff',
+      emissiveMap:null,emissiveIntensity:.15,roughness:.7})); tg.material.emissiveMap=tg.material.map; tg.position.set(x,.72,z+.36); g.add(tg); }
+  });
+}
 
 /* ---------------- palms, lamps, benches ---------------- */
 function frondTex(){
@@ -432,8 +467,8 @@ function makeCar(paint,suv){
 
 /* ---------------- the street ---------------- */
 export class Street {
-  constructor(renderer,{hi=true}={}){
-    this.r=renderer; this.hi=hi; maxAniso=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  constructor(renderer,{hi=true,stores=[]}={}){
+    this.r=renderer; this.hi=hi; this.stores=stores; this.slots=[]; maxAniso=Math.min(8,renderer.capabilities.getMaxAnisotropy());
     const S=this.scene=new THREE.Scene();
     this.camera=new THREE.PerspectiveCamera(55,1,.1,1400); this.camera.rotation.order='YXZ';
     makeMaterials();
@@ -487,8 +522,14 @@ export class Street {
     for(let i=0;i<8;i++){ const z=ROAD0+.6+i*.95; S.add(plane(3.2,.5,paint,0,.013,z)); }      // crossing in front of the bridge
   }
   buildShops(){
-    SHOPS.forEach(([name,fn],i)=>{
-      const g=fn(name), x0=-48+i*24; g.position.set(x0,0,FACADE); this.scene.add(g);
+    // real shops from the planet first (each picks its own facade); any free frontage shows an example shop
+    const FNS=SHOPS.map(s=>s[1]);
+    SHOPS.forEach(([demo],i)=>{
+      const real=this.stores[i]||null, f=real?.store?.facade, fi=Number.isInteger(f)&&f>=0&&f<5?f:i;
+      const name=real?String(real.store.name||'محل').slice(0,40):demo;
+      const g=FNS[fi](name), x0=-48+i*24; g.position.set(x0,0,FACADE); this.scene.add(g);
+      if(real) windowDisplay(g,real.store);
+      this.slots.push({x0,real,name});
       if(g.userData.arc){ const {Rr,zc,a}=g.userData.arc; for(let t=-a;t<=a+1e-6;t+=a/14) this.colliders.push({x:x0+Rr*Math.sin(t),z:FACADE+zc+Rr*Math.cos(t),r:.75}); }
     });
     // narrow stone links between the shops so the street reads as one frontage
@@ -599,6 +640,9 @@ export class Street {
 
   resize(w,h){ this.camera.aspect=w/h; this.camera.updateProjectionMatrix();
     if(this.composer){ this.composer.setPixelRatio(this.r.getPixelRatio()); this.composer.setSize(w,h); } }
+  // the shop frontage you are standing at (on the shop-side pavement)
+  nearSlot(){ const p=this.me.position; if(p.z>ROAD0-.2) return null;
+    return this.slots.find(s=>Math.abs(p.x-s.x0)<10.5)||null; }
   blocked(x,z){
     if(groundY(x,z)===null) return true;
     for(const c of this.colliders){ const dx=x-c.x, dz=z-c.z; if(dx*dx+dz*dz<c.r*c.r) return true; }

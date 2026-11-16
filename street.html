@@ -26,7 +26,18 @@
   #loader .bar{width:220px;height:6px;border-radius:3px;background:rgba(255,255,255,.15);overflow:hidden}
   #loader .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#d8b26a,#f1dca8);transition:width .2s}
   .credit{position:fixed;bottom:4px;right:8px;font-size:10px;opacity:.6;z-index:5;direction:ltr}
-  @media (max-width:760px){.title{font-size:12px}.pill{font-size:12px;padding:8px 10px}.hint{font-size:11px}}
+  .card{position:fixed;left:14px;bottom:14px;width:320px;background:rgba(18,22,30,.88);border:1px solid rgba(255,255,255,.16);border-radius:18px;
+    padding:16px;z-index:6;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transform:translateY(140%);transition:transform .3s}
+  .card.open{transform:none}
+  .card h3{font-size:19px;font-weight:800;margin-bottom:2px}
+  .card .sub{font-size:12px;opacity:.75;margin-bottom:8px}
+  .card p{font-size:13px;opacity:.9;margin-bottom:10px;line-height:1.6;max-height:4.8em;overflow:hidden}
+  .card a{display:block;text-align:center;text-decoration:none;color:#1b1408;background:linear-gradient(135deg,#e9c987,#c99a4f);border-radius:12px;
+    padding:11px;font-weight:800;font-size:15px;margin-top:8px}
+  .card a.alt{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.18)}
+  .card kbd{font:inherit;font-size:11px;opacity:.7}
+  @media (max-width:760px){.card{left:0;right:0;bottom:0;width:auto;border-radius:20px 20px 0 0}
+  .title{font-size:12px}.pill{font-size:12px;padding:8px 10px}.hint{font-size:11px}}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js",
@@ -42,10 +53,12 @@
 </div>
 <div class="hint" id="hint">امشِ بالأسهم أو WASD (Shift للركض) · اسحب الشاشة لتلف الكاميرا</div>
 <div class="joy" id="joy"><i></i></div>
+<div class="card" id="card"></div>
 <div class="credit">Textures &amp; sky: Poly Haven (CC0)</div>
 <script type="module">
 import * as THREE from 'three';
-import { Street, manager } from './street.js?v=7';
+import { Street, manager } from './street.js?v=8';
+import * as BE from './backend.js?v=6';
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 const mobile=matchMedia('(pointer:coarse)').matches;
@@ -60,7 +73,16 @@ document.body.prepend(renderer.domElement);
 const prog=document.getElementById('prog');
 manager.onProgress=(u,l,t)=>{ prog.style.width=Math.round(l/t*100)+'%'; };
 try{ await document.fonts.load('800 40px "Tajawal"'); }catch(e){}
-const st=new Street(renderer,{hi});
+// real shops from the planet: yours first, then the most recently updated (the server answers in a few seconds or we go on without it)
+let stores=[];
+try{
+  const rows=await Promise.race([BE.loadPlots(),new Promise(r=>setTimeout(()=>r(null),6000))]);
+  const me=rows?await BE.myId().catch(()=>null):null;
+  stores=(rows||[]).filter(r=>r.store&&r.store.name)
+    .sort((a,b)=>((b.owner===me)-(a.owner===me))||(new Date(b.updated_at)-new Date(a.updated_at))).slice(0,5)
+    .map(r=>({id:r.plot_id,store:r.store,ownerName:r.owner_name,mine:!!me&&r.owner===me}));
+}catch(e){ console.warn('shops offline',e); }
+const st=new Street(renderer,{hi,stores});
 function onResize(){ renderer.setSize(innerWidth,innerHeight); st?.resize(innerWidth,innerHeight); }
 setQ();
 addEventListener('resize',onResize);
@@ -97,6 +119,30 @@ cv.addEventListener('wheel',e=>{ st.dist=Math.min(14,Math.max(3,st.dist*(1+e.del
 const clock=new THREE.Clock();
 renderer.setAnimationLoop(()=>{ const dt=Math.min(clock.getDelta(),.05); st.update(dt); st.render(); });
 window._street=st;
+
+/* ---- the shop you walk up to ---- */
+const card=document.getElementById('card');
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let cur, enterUrl=null;
+function showCard(s){
+  if(!s){ card.classList.remove('open'); enterUrl=null; return; }
+  if(s.real){ const r=s.real, n=(r.store.lines||[]).length;
+    enterUrl=`index.html?walk=${r.id}`;
+    card.innerHTML=`<h3>${esc(r.store.name)}</h3><div class="sub">محل حقيقي · قطعة ${r.id+1}${r.ownerName?` · ${esc(r.ownerName)}`:''} · ${n} منتج</div>
+      ${r.store.about?`<p>${esc(r.store.about)}</p>`:''}
+      <a href="${enterUrl}">🚶 ادخل المحل <kbd>(E)</kbd></a>
+      <a class="alt" href="shop.html?p=${r.id}&view=public">🛍️ صفحة المحل والمنتجات</a>
+      ${r.mine?`<a class="alt" href="shop.html?p=${r.id}">🛠️ لوحة تحكم محلك</a>`:''}`;
+  }else{
+    enterUrl=null;
+    card.innerHTML=`<h3>${esc(s.name)}</h3><div class="sub">محل تجريبي · هذي الواجهة متاحة</div>
+      <p>لما تستأجر قطعة في الكوكب وتفتح محلك، يطلع محلك هنا في الشارع بالواجهة اللي تختارها، ومنتجاتك في الفترينة.</p>
+      <a href="index.html">🏷️ استأجر قطعة من الكوكب</a>`;
+  }
+  card.classList.add('open');
+}
+setInterval(()=>{ const s=st.nearSlot(); if(s!==cur){ cur=s; showCard(s); } },200);
+addEventListener('keydown',e=>{ if((e.code==='KeyE'||e.code==='Enter')&&enterUrl) location.href=enterUrl; });
 </script>
 </body>
 </html>
