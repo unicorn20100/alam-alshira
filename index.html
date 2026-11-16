@@ -308,7 +308,7 @@ const TYPE_LABEL={land:'مدينة / ساحل',forest:'واحة / قرم',desert
 const BASE_RENT={land:1500,forest:1100,desert:950,mountain:800,water:700};
 const STATUS={avail:['متاحة للإيجار','#3ddc84'],rented:['مؤجرة','#ff8a3d'],reserved:['قيد الحجز','#ffd23d'],mine:['محجوزة لك','#4da3ff']};
 const NOPLOT=65535;                      // sea triangles belong to no plot
-const PLOT_GAP=.11;                      // smallest angle between two plot centres (radians)
+const PLOT_GAP=.072;                     // smallest angle between two plot centres (radians)
 
 /* ---------- scene ---------- */
 const R=10;
@@ -352,9 +352,9 @@ const outline=makeOutline(renderer);
 let planet, plots=[], facePlot, faceBorder, fCount, cloudGrp, SD, tiles;
 let selected=-1, overlay=false;
 const tmpC=new THREE.Color(), white=new THREE.Color('#ffffff');
-const MODEL_V='1';
+const MODEL_V='2';
 const CITY_OF=['Abu Dhabi','Dubai','Sharjah','Ajman','Umm Al Quwain','Ras Al Khaimah','Fujairah'];   // same order as EMIRATES
-const EXTRA_SEEDS={'Al Ain':0,'Liwa':0};     // these towns belong to Abu Dhabi
+const EXTRA_SEEDS={'Al Ain':0,'Liwa':0,'Ruwais':0};     // these towns belong to Abu Dhabi
 
 async function build(){
   const loader=new GLTFLoader(); const draco=new DRACOLoader();
@@ -374,13 +374,13 @@ async function build(){
   const seeds=[]; CITY_OF.forEach((c,k)=>seeds.push([new THREE.Vector3(...data.cities[c]),k]));
   for(const [c,k] of Object.entries(EXTRA_SEEDS)) if(data.cities[c]) seeds.push([new THREE.Vector3(...data.cities[c]),k]);
   const emOf=v=>{let b=-2,k=0;for(const [s,e] of seeds){const d=s.dot(v);if(d>b){b=d;k=e;}}return k;};
-  const sEm=new Int8Array(N); for(let i=0;i<N;i++) sEm[i]=land(i)?emOf(dirOf(i)):-1;
+  const sEm=new Int8Array(N); for(let i=0;i<N;i++) sEm[i]=!land(i)?-1:data.em?data.em[i]:emOf(dirOf(i));   // real emirate borders when the data has them
 
   // plots: one at every emirate capital first, then spread over the land
   const add=(d,em)=>plots.push({id:plots.length,dir:d,country:em,faces:[],counts:{land:0,forest:0,desert:0,mountain:0,water:0}});
   CITY_OF.forEach((c,k)=>add(new THREE.Vector3(...data.cities[c]).normalize(),k));
   const cosGap=Math.cos(PLOT_GAP);
-  for(let i=0;i<N;i+=3){ if(!land(i)||H[i]<.012) continue; const d=dirOf(i); if(plots.some(p=>p.dir.dot(d)>cosGap)) continue; add(d,sEm[i]); }
+  for(let i=0;i<N;i+=2){ if(sEm[i]<0||H[i]<.012) continue; const d=dirOf(i); if(plots.some(p=>p.dir.dot(d)>cosGap)) continue; add(d,sEm[i]); }
   const byEm=EMIRATES.map((e,k)=>plots.filter(p=>p.country===k));
 
   facePlot=new Uint16Array(N).fill(NOPLOT); faceBorder=new Uint8Array(N);
@@ -406,7 +406,7 @@ async function build(){
     p.central=Math.exp(-p.dir.angleTo(capitals[p.country].dir)/.3);
     p.isCapital=p===capitals[p.country];
     p.rent=Math.round(BASE_RENT[p.type]*(1+2.6*p.central)/50)*50;
-    p.area=n*300;                        // about 10,000 m² for a typical plot
+    p.area=n*650;                        // about 10,000 m² for a typical plot
     let bf=p.faces[0],bd=-2;for(const f of p.faces){const dd=p.dir.x*SD[f*3]+p.dir.y*SD[f*3+1]+p.dir.z*SD[f*3+2];if(dd>bd){bd=dd;bf=f;}}
     p.surf=dirOf(bf).multiplyScalar(data.radii[bf]);
     const r=rand();
